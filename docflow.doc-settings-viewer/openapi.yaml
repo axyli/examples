@@ -1,0 +1,103 @@
+openapi: 3.0.1
+info:
+    title: docflow.doc-settings-viewer
+    description: Сервис просмотра настроек документов и их полей
+    version: 1.0.0
+servers:
+    -   url: '{server}'
+paths:
+    /v1/doc_type:
+        get:
+            summary: Получение списка всех типов документов.
+            description: ""
+            operationId: getDocType
+            parameters:
+                -   name: domain_uuid
+                    in: path
+                    required: true
+                    description: "Идентификатор домена"
+                    schema:
+                        type: string
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ListItems"
+    /v1/invalidation_reason:
+        get:
+            summary: Получение списка причин невалидности
+            description: ""
+            operationId: getInvalidationReason
+            parameters:
+                -   name: domain_uuid
+                    in: path
+                    required: true
+                    description: "Идентификатор домена"
+                    schema:
+                        type: string
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ListItems"
+    /v1/fields_position/{doc_uuid}:
+        get:
+            summary: Получение расположения полей документа на скане по идентификатору документа
+            description: ""
+            operationId: getFieldPosition
+            parameters:
+                -   name: doc_uuid
+                    in: path
+                    required: true
+                    description: "Идентификатор документа"
+                    schema:
+                        type: string
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ListFieldsPosition"
+components:
+    schemas:
+        ListItems:
+            description: Список значений справочника
+            type: array
+            items:
+                $ref: "#/components/schemas/Item"
+        Item:
+            description: Единичная запись из справочника
+            type: object
+            properties:
+                uuid:
+                    type: string
+                    example: "8c8c654e-325f-43d2-be6b-cfbaadd431de"
+                title:
+                    type: string
+                    example: "Значение"
+        ListFieldsPosition:
+            description: Список полей и их позиция на странице
+            type: array
+            items:
+                $ref: "#/components/schemas/FieldPosition"
+        FieldPosition:
+            description: Позиция поля
+            type: object
+            properties:
+                uuid:
+                    type: string
+                    description: идентификатор поля
+                    example: "8c8c654e-325f-43d2-be6b-cfbaadd431de"
+                page:
+                    type: number
+                    description: номер страницы
+                    example: 2
+                coordinate:
+                    type: string
+                    description: коорджинаты
+                    example: "10,10,70,30"
