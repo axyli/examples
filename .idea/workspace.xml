@@ -33,6 +33,17 @@
     </task>
     <servers />
   </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="WindowStateProjectService">
     <state x="881" y="409" width="781" height="408" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1594621227736">
       <screen x="0" y="24" width="2560" height="1392" />

@@ -1,0 +1,183 @@
+openapi: 3.0.1
+info:
+  title: doc-warehouse.cell-audit-processing
+  description: Сервис инвентаризации ячеек
+  version: 1.0.0
+servers:
+  - url: '{server}'
+paths:
+
+
+  /v1/actioncell/{barcode}/open: ## Запрос в сервис работы ячеек на открытие в doc-warehouse.cell
+    post:
+      summary: Запрос о состоянии ячейки
+      operationId: checkCell
+      parameters:
+        - name: barcode
+          in: path
+          required: true
+          description: баркод ячейки
+          schema:
+            type: string
+            format: int64
+            example: '98753746528376'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CellOpenDTO'
+        '403':
+          description: Access denied
+
+  /v1/doc/{barcode}/checkdoc: ## Метод проверки наличия документа в ячейке
+    get:
+      summary: Метод получения статуса документа
+      operationId: getDocsInCell
+      parameters:
+        - name: barcode
+          in: path
+          schema:
+            type: string
+            format: int64
+            example: '81877485472883'
+          required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocCheckDTO'
+        '404':
+          description: Invalid barcode
+
+  /v1/actioncell/{cell_uuid}/checkinv: ### Процесс сверки состояния ячейки до и после инвентаризации
+    post:
+      summary: сверка документов
+      operationId: checkInvCell
+      parameters:
+        - name: cell_uuid
+          in: path
+          required: true
+          description: uuid ячейки
+          schema:
+            type: string
+            format: uuid
+            example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendReportDTO'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReportDTO'
+
+  /v1/actioncell/{barcode}/close: ### Метод закрытия ячейки
+    post:
+      summary: Метод закрытия ячейки
+      operationId: closetCell
+      parameters:
+        - name: barcode
+          in: path
+          required: true
+          description: баркод ячейки
+          schema:
+            type: string
+            format: int64
+            example: '98753746528376'
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Invalid barcode
+
+
+components:
+  schemas:
+
+    SendReportDTO:
+      type: object
+      description: Массив отсканированных документов
+      properties:
+        cellUuid:
+          type: string
+          format: uuid
+        docsBarcodes:
+          description: (список документов находящихся в данный момент в ячейке)
+          type: array
+          items:
+            type: string
+            description: ''
+            format: int64
+            example: '14601234567890'
+    ResultReportDTO:
+      type: object
+      description: Отчет по проведению инвентаризации
+      properties:
+        report:
+          type: array
+          items:
+            type: object
+            properties:
+              cellUuid:
+                type: string
+                format: uuid
+              docsOK:
+                type: array
+                items:
+                  properties:
+                    docsUuid:
+                      type: string
+                      format: uuid
+              docsMove:
+                type: array
+                items:
+                  properties:
+                    docsUuid:
+                      type: string
+                      format: uuid
+              docsNotFound:
+                type: array
+                items:
+                  properties:
+                    docUuid:
+                      type: string
+                      format: uuid
+
+    CellOpenDTO:
+      type: object
+      description: Данные по ячейке на начало инвентаризации
+      properties:
+        UuidCell:
+          type: string
+          format: uuid
+        Number:
+          type: string
+          example: '004.17.05'
+        Count:
+          type: number
+          example: '25'
+
+    DocCheckDTO:
+      type: object
+      description: Данные по документу на начало инвентаризации
+      properties:
+        type:
+          type: string
+          example: 'накладная'
+        uuidDoc:
+          type: string
+          format: uuid
+        uuidCell:
+          type: string
+          format: uuid
+        available:
+          type: boolean
+          example: 'true'
