@@ -1,0 +1,89 @@
+@startuml
+title 3.1 Полный поток с обработкой всех граничных случаев
+
+participant "Диспетчер" as D
+participant "Incident Service" as IS
+participant "Crew Service" as CS
+participant "Notification Service" as NS
+database "Incident DB" as DB
+queue "Kafka" as K
+participant "Brigade" as Brigade
+
+D -> IS: POST /incidents/{id}/assign
+IS -> DB: Проверка idempotency_key
+IS -> DB: Проверка incident (status=PENDING_ASSIGNMENT)
+IS -> DB: Запись idempotency_key (IN_PROGRESS)
+IS -> K: publish IncidentAssignmentRequested
+
+K --> CS: consume IncidentAssignmentRequested
+CS -> CS: Проверка crew (status=FREE)
+CS -> CS: UPDATE crews\nSET status=RESERVED, version+=1
+CS -> K: publish CrewReserved
+
+K --> IS: consume CrewReserved
+IS -> DB: START TRANSACTION
+IS -> DB: INSERT INTO incident_assignment\n(status=AWAITING_CONFIRMATION,\n expires_at=NOW()+2min)
+IS -> DB: UPDATE incident\nSET status=AWAITING_CONFIRMATION, version+=1
+IS -> DB: INSERT INTO audit_log
+IS -> DB: INSERT INTO outbox (IncidentAwaitingConfirmation)
+IS -> DB: UPDATE idempotency_key\n(status=COMPLETED, response_payload)
+IS -> DB: COMMIT
+
+IS -> K: publish IncidentAwaitingConfirmation (from outbox)
+K --> NS: consume IncidentAwaitingConfirmation
+NS -> NS: INSERT INTO notifications (status=NEW)
+NS -> D: WebSocket: Уведомление диспетчеру
+
+note over NS
+WebSocket push бригаде
+end note
+
+NS -> Brigade: assignment.requested (expires_at)
+
+alt Врач подтверждает
+    Brigade -> IS: POST /assignments/{id}/confirm
+    IS -> DB: Проверка idempotency
+    IS -> DB: UPDATE incident_assignment\nSET status='CONFIRMED', version=version+1\nWHERE id=? AND status='AWAITING_CONFIRMATION'\nAND expires_at>NOW() AND version=?
+
+    alt Update успешен (rows_affected=1)
+        IS -> K: publish AssignmentConfirmed
+        K --> CS: consume AssignmentConfirmed
+        CS -> CS: UPDATE crews\nSET status=BUSY, version+=1
+        CS -> K: publish CrewBecameBusy
+
+        K --> IS: consume CrewBecameBusy
+        IS -> DB: UPDATE incident\nSET status=IN_PROGRESS, version+=1
+        IS -> DB: INSERT INTO audit_log
+        IS -> K: publish IncidentInProgress
+
+        IS --> Brigade: 200 OK (CONFIRMED)
+    else Update не удался (конфликт или таймаут)
+        IS --> Brigade: 409 CONFLICT\n(ASSIGNMENT_EXPIRED или CONCURRENT_MODIFICATION)
+    end
+
+else Врач отклоняет или таймаут
+    alt Ручной отказ
+        Brigade -> IS: POST /assignments/{id}/reject
+    else Автоматический таймаут
+        IS -> IS: Scheduler:\nSELECT * FROM incident_assignment\nWHERE status='AWAITING_CONFIRMATION'\nAND expires_at<NOW()
+    end
+
+    IS -> DB: UPDATE incident_assignment\nSET status='REJECTED', version+=1
+    IS -> K: publish AssignmentRejected
+
+    K --> CS: consume AssignmentRejected
+    CS -> CS: UPDATE crews\nSET status=FREE, version+=1
+    CS -> K: publish CrewBecameFree
+
+    K --> IS: consume CrewBecameFree
+    IS -> DB: UPDATE incident\nSET status=PENDING_ASSIGNMENT, version+=1
+    IS -> DB: INSERT INTO audit_log
+    IS -> K: publish IncidentPendingAssignment
+
+    K --> NS: consume IncidentPendingAssignment
+    NS -> D: WebSocket: Уведомление диспетчеру об отказе
+
+    IS --> Brigade: 200 OK (REJECTED)
+end
+
+@enduml
