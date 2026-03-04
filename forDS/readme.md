@@ -1,15 +1,10 @@
-# Incident Management: Event-Driven Saga
-
-Решение управляет назначением бригады на обращение и подтверждением врачом через Event-Driven Saga с использованием Kafka.  
-Incident Service выступает **оркестратором**, Crew Service и Notification Service — исполнителями.
-
----
+# Incident Management System
 
 ## 1. Физическая модель данных
 
 ### 1.1 Incident Service
 
-#### Таблица: `incident`
+#### Таблица: incident
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -24,7 +19,7 @@ Incident Service выступает **оркестратором**, Crew Service
 
 **Индексы:** `(direction_id, status)`
 
-#### Таблица: `incident_assignment`
+#### Таблица: incident_assignment
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -42,7 +37,7 @@ Incident Service выступает **оркестратором**, Crew Service
 
 **Ограничение:** `UNIQUE(incident_id) WHERE status IN ('PENDING_RESERVE','WAITING_CONFIRMATION','ACCEPTED')`
 
-#### Таблица: `idempotency_keys`
+#### Таблица: idempotency_keys
 
 | Поле | Тип | Описание |
 | ----- | ----- | ----- |
@@ -53,7 +48,7 @@ Incident Service выступает **оркестратором**, Crew Service
 | status | VARCHAR (IN_PROGRESS / COMPLETED / FAILED) | Статус выполнения |
 | created_at | TIMESTAMP | Дата создания |
 
-#### Таблица: `audit_log`
+#### Таблица: audit_log
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -66,7 +61,7 @@ Incident Service выступает **оркестратором**, Crew Service
 | payload | JSONB | — | Дополнительные данные |
 | created_at | TIMESTAMP | — | Время события |
 
-#### Таблица: `outbox_events`
+#### Таблица: outbox_events
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -80,11 +75,9 @@ Incident Service выступает **оркестратором**, Crew Service
 | created_at | TIMESTAMP | — | Дата создания |
 | sent_at | TIMESTAMP | — | Дата публикации |
 
----
-
 ### 1.2 Crew Service
 
-#### Таблица: `crews`
+#### Таблица: crews
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -94,11 +87,9 @@ Incident Service выступает **оркестратором**, Crew Service
 | version | BIGINT | — | Optimistic Locking |
 | updated_at | TIMESTAMP | — | Дата изменения |
 
----
-
 ### 1.3 Notification Service
 
-#### Таблица: `notifications`
+#### Таблица: notifications
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -112,15 +103,13 @@ Incident Service выступает **оркестратором**, Crew Service
 | delivered_at | TIMESTAMP | — | Дата доставки |
 | acknowledged_at | TIMESTAMP | — | Дата подтверждения получения |
 
----
-
 ### 1.4 Reference Data
 
-* `directions`: id, name, is_active, created_at
-* `crew_status_dict`: code, description
-* `incident_status_dict`: code, description
-* `assignment_status_dict`: code, description
-* `reject_reason_dict`: code, description
+* **directions:** id, name, is_active, created_at
+* **crew_status_dict:** code, description
+* **incident_status_dict:** code, description
+* **assignment_status_dict:** code, description
+* **reject_reason_dict:** code, description
 
 ---
 
@@ -130,26 +119,26 @@ Incident Service выступает **оркестратором**, Crew Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
-| POST /v1/incidents/{id}/assign | path: incident_id, body: crew_id, header: Authorization (JWT), Idempotency-Key | 201 Created + assignment_id / 403 / 404 / 409 / 500 | Назначение обращения диспетчером через оркестрируемую Saga |
-| POST /v1/assignments/{id}/accept | path: assignment_id, header: Authorization (JWT), Idempotency-Key | 200 OK / 403 / 404 / 409 / 500 | Подтверждение назначения врачем |
-| POST /v1/assignments/{id}/reject | path: assignment_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 409 / 500 | Отказ назначения |
-| POST /v1/incidents/{id}/complete | path: incident_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 500 | Завершение обращения |
-| GET /v1/incidents | query: filters | list of incidents | Список обращений |
-| GET /v1/incidents/{id} | path: incident_id | incident detail | Детали обращения |
-| GET /v1/incidents/{id}/history | path: incident_id | audit log | Аудит действий по обращению |
+| POST /incidents/{id}/assign | path: incident_id, body: crew_id, header: Authorization (JWT), Idempotency-Key | 201 Created + assignment_id / 403 / 404 / 409 / 500 | Назначение обращения диспетчером через оркестрируемую Saga |
+| POST /assignments/{id}/accept | path: assignment_id, header: Authorization (JWT), Idempotency-Key | 200 OK / 403 / 404 / 409 / 500 | Подтверждение назначения врачем |
+| POST /assignments/{id}/reject | path: assignment_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 409 / 500 | Отказ назначения |
+| POST /incidents/{id}/complete | path: incident_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 500 | Завершение обращения |
+| GET /incidents | query: filters | list of incidents | Список обращений |
+| GET /incidents/{id} | path: incident_id | incident detail | Детали обращения |
+| GET /incidents/{id}/history | path: incident_id | audit log | Аудит действий по обращению |
 
 ### Crew Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
-| GET /v1/crews?status=FREE | query: status | list of crews | Доступные бригады |
-| internal ReserveCrew | internal | — | Команда Saga, атомарное резервирование бригады |
+| GET /crews?status=FREE | query: status | list of crews | Доступные бригады |
+| internal ReserveCrew | internal | — | Команда для Saga, атомарное резервирование бригады |
 
 ### Notification Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
-| GET /v1/notifications | query: filters | list of notifications | Список уведомлений |
+| GET /notifications | query: filters | list of notifications | Список уведомлений |
 | WS ACK handler | payload: notification_id | 200 OK | Подтверждение доставки |
 | WS heartbeat | — | 200 OK | Поддержка сессии |
 
@@ -157,126 +146,40 @@ Incident Service выступает **оркестратором**, Crew Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
-| POST /v1/login | body: username/password | JWT token | Авторизация |
-| GET /v1/me | header: Authorization (JWT) | user info | Информация о текущем пользователе |
+| POST /login | body: username/password | JWT token | Авторизация |
+| GET /me | header: Authorization (JWT) | user info | Информация о текущем пользователе |
 
 ---
 
 ## 3. Event-Driven Saga: Назначение обращения
 
-### 3.1 Overview
+### 3.1 Назначение обращения (POST /v1/incidents/{incident_id}/assign)
 
-Incident Service **оркестрирует Saga**:
+1. Проверка авторизации (JWT) и роли DISPATCHER → 401 / 403
+2. Проверка Idempotency-Key → IN_PROGRESS: 409, COMPLETED: вернуть результат
+3. Проверка обращения: существует? направление совпадает? статус = NEW → 404 / 403 / 409
+4. Публикация события `IncidentAssignmentRequested` в Kafka (topic: `incident.assignments.requested`)
+5. Crew Service обрабатывает событие:
+    * Проверка бригады: существует, FREE, направление совпадает
+    * SUCCESS → status = RESERVED, публикация `CrewReserved`
+    * FAIL → публикация `CrewReservationFailed`
+    * Топик: `crew.assignments.status`
 
-1. Синхронная проверка прав, статуса и идемпотентности
-2. Публикация события `IncidentAssignmentRequested` в Kafka (`incident.assignments.requested`)
-3. Crew Service подписан на топик → резервирует бригаду (`FREE → RESERVED`)
-4. Crew Service публикует `CrewReserved` или `CrewReservationFailed` (`crew.assignments.status`)
-5. Incident Service обновляет `incident_assignment` и `incident.status`, публикует `IncidentAssigned`
+6. **Incident Service — обработка результата**
+    * `CrewReserved` → создать `incident_assignment`, `incident.status = ASSIGNED_WAITING_CONFIRMATION`, добавить запись в audit_log, публикация события `IncidentAssigned` (topic: `incident.assignments.assigned`)
+    * `CrewReservationFailed` → Idempotency-Key = FAILED, вернуть клиенту 409
 
----
+7. **Подтверждение назначения врачом (POST /v1/assignments/{assignment_id}/accept)**
+    * Проверка: Idempotency-Key, таймаут `expires_at > now()`
+    * Обновления: Crew: RESERVED → BUSY, Incident: ASSIGNED_WAITING_CONFIRMATION → IN_PROGRESS
+    * Публикации: `AssignmentAccepted` → topic `assignment.accepted`, Crew Service публикует `CrewBusy` → topic `crew.status.updated`, Notification Service → `incident.assignments.inprogress`
 
-### 3.2 Логика шагов
-
-#### 1. Проверка авторизации (синхронно)
-
-* Из JWT: `user_id`, `role`, `workstation_id`, `direction_id`
-* Невалидный токен → **401**
-* Роль != `DISPATCHER` → **403**
-
-#### 2. Проверка идемпотентности (синхронно)
-
-* Таблица `idempotency_keys`
-* Статусы: `IN_PROGRESS` / `COMPLETED`
-* `COMPLETED` → вернуть сохранённый результат
-* `IN_PROGRESS` → **409**
-* Нет записи → создать `IN_PROGRESS`
-
-#### 3. Проверка обращения (синхронно)
-
-* Таблица `incident`: `id`, `status`, `direction_id`
-* Существует? → иначе **404**
-* Направление совпадает? → иначе **403**
-* Статус = `NEW` → иначе **409**
-
-#### 4. Публикация события назначения (асинхронно)
-
-* Топик: `incident.assignments.requested`
-* Payload:
-
-```json
-{
-  "incident_id": "...",
-  "crew_id": "...",
-  "requested_by": "...",
-  "expires_at": "..."
-}
-```
-### 5. Обработка события в Crew Service
-
-* Подписка на топик: `incident.assignments.requested`
-* Проверка бригады:
-    * существует (`id` есть в базе)
-    * статус = `FREE`
-    * направление совпадает с обращением
-
-* Результаты проверки:
-    * **SUCCESS** → `status = RESERVED`, публикация события `CrewReserved`
-    * **FAIL** → публикация события `CrewReservationFailed`
-
-* Топик публикации: `crew.assignments.status`
-* Пример payload:
-
-```json
-{
-  "crew_id": "...",
-  "incident_id": "...",
-  "status": "RESERVED" // или "FAILED"
-}
-```
-### 6. Incident Service — обработка результата
-
-**CrewReserved:**
-
-* Создать запись `incident_assignment` в своей БД
-* Обновить `incident.status = ASSIGNED_WAITING_CONFIRMATION`
-* Добавить запись в `audit_log`
-* Опубликовать событие `IncidentAssigned` в топик `incident.assignments.assigned`
-
-**CrewReservationFailed:**
-
-* Отметить `Idempotency-Key = FAILED`
-* Вернуть клиенту **409 Conflict**
-
----
-
-### 7. Подтверждение назначения врачом
-
-* Метод: `POST /v1/assignments/{assignment_id}/accept`
-* Проверка:
-    * `Idempotency-Key`
-    * Таймаут: `expires_at > now()`
-* Обновления:
-    * Crew: `RESERVED → BUSY`
-    * Incident: `ASSIGNED_WAITING_CONFIRMATION → IN_PROGRESS`
-* Публикации:
-    * Событие `AssignmentAccepted` → топик `assignment.accepted`
-    * Crew Service публикует `CrewBusy` → топик `crew.status.updated`
-    * Notification Service получает уведомление через `incident.assignments.inprogress`
-
----
-
-### 8. Отказ / Timeout
-
-* Метод: `POST /v1/assignments/{assignment_id}/reject` или истёк таймер
-* Обновления:
-    * Crew: `RESERVED → FREE` (событие `CrewFreed`)
+8. **Отказ / Timeout (POST /v1/assignments/{assignment_id}/reject или таймер истек)**
+    * Crew: RESERVED → FREE (событие `CrewFreed`)
     * Incident: `incident_assignment.status = REJECTED`, `incident.status = NEW`
-* Все действия (Audit, Outbox, Notification) происходят через Kafka
+    * Все действия (Audit, Outbox, Notification) через Kafka
 
----
-
-### 3.3 Пример ответа на успешное назначение
+### 3.2 Пример успешного ответа
 
 ```json
 {
@@ -286,7 +189,6 @@ Incident Service **оркестрирует Saga**:
   "status": "WAITING_CONFIRMATION",
   "expires_at": "2026-03-04T12:30:00Z"
 }
-
 ```
 
 ### 3.4 Возможные ошибки

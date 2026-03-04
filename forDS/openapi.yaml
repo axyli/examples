@@ -1,237 +1,326 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
-  title: Incident Service API
+  title: Incident Management API
   version: 1.0.0
-  description: |
-    Методы управления назначениями обращений с поддержкой Event-Driven Saga через Kafka.
-    Все операции защищены Idempotency-Key и JWT.
+  description: >
+    API для назначения обращений и управления жизненным циклом назначения.
+    Архитектура основана на Event-Driven Saga.
+    Kafka используется для межсервисного взаимодействия.
 
 servers:
   - url: https://api.example.com/v1
 
-components:
-  parameters:
-    AuthorizationHeader:
-      name: Authorization
-      in: header
-      required: true
-      description: JWT токен пользователя
-      schema:
-        type: string
-    IdempotencyKeyHeader:
-      name: Idempotency-Key
-      in: header
-      required: false
-      description: Уникальный ключ для идемпотентных операций
-      schema:
-        type: string
-
 paths:
+
   /incidents/{incident_id}/assign:
     post:
-      summary: Назначение обращения (Saga)
-      description: |
-        Incident Service инициирует назначение бригады. Публикует событие `IncidentAssignmentRequested` в топик `incident.assignments.requested`.
-        Crew Service подписан на топик и резервирует бригаду, публикуя `CrewReserved` или `CrewReservationFailed`.
-        Incident Service завершает создание `incident_assignment`, обновляет статус обращения и публикует `IncidentAssigned` для Notification Service и фронта.
-      tags:
-        - Incident Service
+      summary: Назначение обращения бригаде
+      description: >
+        Инициируется диспетчером.
+        После валидации публикуется событие
+        IncidentAssignmentRequested → topic incident.assignments.requested
+
       parameters:
-        - $ref: '#/components/parameters/AuthorizationHeader'
-        - $ref: '#/components/parameters/IdempotencyKeyHeader'
         - name: incident_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-          description: Идентификатор обращения
+
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - crew_id
-              properties:
-                crew_id:
-                  type: string
-                  format: uuid
-                  description: Идентификатор бригады
-            example:
-              crew_id: "6a7e334f-9210-4f07-b8e1-0f9b8a12c4a1"
+              $ref: '#/components/schemas/AssignRequest'
+
       responses:
         '201':
-          description: Назначение успешно создано
+          description: Назначение создано, статус WAITING_CONFIRMATION
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - assignment_id
-                  - incident_id
-                  - crew_id
-                  - status
-                  - expires_at
-                properties:
-                  assignment_id:
-                    type: string
-                    format: uuid
-                  incident_id:
-                    type: string
-                    format: uuid
-                  crew_id:
-                    type: string
-                    format: uuid
-                  status:
-                    type: string
-                    enum:
-                      - WAITING_CONFIRMATION
-                  expires_at:
-                    type: string
-                    format: date-time
-              example:
-                assignment_id: "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11"
-                incident_id: "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901"
-                crew_id: "6a7e334f-9210-4f07-b8e1-0f9b8a12c4a1"
-                status: "WAITING_CONFIRMATION"
-                expires_at: "2026-03-04T12:30:00Z"
+                $ref: '#/components/schemas/AssignmentResponse'
+
         '401':
-          description: Пользователь не авторизован
+          description: JWT отсутствует или невалиден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: UNAUTHORIZED
+                message: Authentication required
+
         '403':
-          description: Недостаточно прав
+          description: Роль пользователя не DISPATCHER или направление не совпадает
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: FORBIDDEN_OPERATION
+                message: Insufficient permissions
+
         '404':
-          description: Обращение или бригада не найдены
+          description: Обращение не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INCIDENT_NOT_FOUND
+                message: Incident not found
+
         '409':
-          description: Назначение уже создано или Idempotency-Key в процессе
+          description: Бизнес-конфликт
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyAssigned:
+                  value:
+                    code: INCIDENT_ALREADY_ASSIGNED
+                    message: Incident already assigned
+                crewUnavailable:
+                  value:
+                    code: CREW_NOT_AVAILABLE
+                    message: Crew is not available
+                idempotencyConflict:
+                  value:
+                    code: IDEMPOTENCY_CONFLICT
+                    message: Request already in progress
+
         '500':
           description: Внутренняя ошибка сервиса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /assignments/{assignment_id}/accept:
     post:
       summary: Подтверждение назначения врачом
-      description: |
-        Врач подтверждает назначение. Проверяется таймаут (expires_at > now()).  
-        Incident Service публикует `AssignmentAccepted` в топик `assignment.accepted`.  
-        Crew Service подписан на топик и переводит бригаду в статус BUSY (`RESERVED → BUSY`), публикуя `CrewBusy` в `crew.status.updated`.  
-        Incident Service обновляет `incident.status → IN_PROGRESS`, создает запись в audit_log и публикует уведомления.
-      tags:
-        - Incident Service
+      description: >
+        Подтверждение назначения.
+        Публикация AssignmentAccepted → topic assignment.accepted
+
       parameters:
-        - $ref: '#/components/parameters/AuthorizationHeader'
-        - $ref: '#/components/parameters/IdempotencyKeyHeader'
         - name: assignment_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-          description: Идентификатор назначения
-      requestBody:
-        required: false
+
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+
       responses:
         '200':
-          description: Назначение подтверждено
+          description: Назначение подтверждено, статус IN_PROGRESS
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - assignment_id
-                  - incident_id
-                  - crew_id
-                  - status
-                properties:
-                  assignment_id:
-                    type: string
-                    format: uuid
-                  incident_id:
-                    type: string
-                    format: uuid
-                  crew_id:
-                    type: string
-                    format: uuid
-                  status:
-                    type: string
-                    enum:
-                      - ACCEPTED
-              example:
-                assignment_id: "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11"
-                incident_id: "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901"
-                crew_id: "6a7e334f-9210-4f07-b8e1-0f9b8a12c4a1"
-                status: "ACCEPTED"
+                $ref: '#/components/schemas/AcceptResponse'
+
         '401':
           description: Пользователь не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
         '403':
-          description: Недостаточно прав
+          description: Пользователь не является членом данной бригады
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: FORBIDDEN_OPERATION
+                message: Not allowed to accept this assignment
+
         '404':
           description: Назначение не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: ASSIGNMENT_NOT_FOUND
+                message: Assignment not found
+
         '409':
-          description: Таймаут истек или параллельный отказ/повторная обработка
+          description: Конфликт состояния назначения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                timeout:
+                  value:
+                    code: ASSIGNMENT_EXPIRED
+                    message: Assignment expired
+                alreadyProcessed:
+                  value:
+                    code: ASSIGNMENT_ALREADY_PROCESSED
+                    message: Assignment already accepted or rejected
+                idempotencyConflict:
+                  value:
+                    code: IDEMPOTENCY_CONFLICT
+                    message: Duplicate request
+
         '500':
           description: Внутренняя ошибка сервиса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /assignments/{assignment_id}/reject:
     post:
-      summary: Отказ назначения или таймаут
-      description: |
-        Врач или система отменяет назначение.  
-        Incident Service публикует `AssignmentRejected` в топик `assignment.rejected`.  
-        Crew Service подписан на топик и переводит бригаду в статус FREE (`RESERVED → FREE`), публикуя `CrewFreed` в `crew.status.updated`.  
-        Incident Service подписан на `crew.status.updated`, обновляет `incident_assignment.status → REJECTED`, `incident.status → NEW`, создает запись в audit_log и уведомляет Notification Service.
-      tags:
-        - Incident Service
+      summary: Отказ назначения врачом
+      description: >
+        Отказ или обработка истечения таймера.
+        Публикация AssignmentRejected → topic assignment.rejected
+
       parameters:
-        - $ref: '#/components/parameters/AuthorizationHeader'
-        - $ref: '#/components/parameters/IdempotencyKeyHeader'
         - name: assignment_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-          description: Идентификатор назначения
-      requestBody:
-        required: false
+
       responses:
         '200':
-          description: Назначение успешно отменено / таймаут зафиксирован
+          description: Назначение отклонено, статус REJECTED
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - assignment_id
-                  - incident_id
-                  - crew_id
-                  - status
-                properties:
-                  assignment_id:
-                    type: string
-                    format: uuid
-                  incident_id:
-                    type: string
-                    format: uuid
-                  crew_id:
-                    type: string
-                    format: uuid
-                  status:
-                    type: string
-                    enum:
-                      - REJECTED
-              example:
-                assignment_id: "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11"
-                incident_id: "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901"
-                crew_id: "6a7e334f-9210-4f07-b8e1-0f9b8a12c4a1"
-                status: "REJECTED"
+                $ref: '#/components/schemas/RejectResponse'
+
         '401':
           description: Пользователь не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
         '403':
-          description: Недостаточно прав
+          description: Нет прав на отклонение назначения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
         '404':
           description: Назначение не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
         '409':
-          description: Повторная обработка Idempotency-Key
+          description: Назначение уже обработано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: ASSIGNMENT_ALREADY_PROCESSED
+                message: Assignment already accepted or rejected
+
         '500':
           description: Внутренняя ошибка сервиса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+
+components:
+
+  schemas:
+
+    AssignRequest:
+      type: object
+      required:
+        - crew_id
+      properties:
+        crew_id:
+          type: string
+          format: uuid
+
+    AssignmentResponse:
+      type: object
+      properties:
+        assignment_id:
+          type: string
+          format: uuid
+        incident_id:
+          type: string
+          format: uuid
+        crew_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [WAITING_CONFIRMATION]
+        expires_at:
+          type: string
+          format: date-time
+
+    AcceptResponse:
+      type: object
+      properties:
+        assignment_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [IN_PROGRESS]
+
+    RejectResponse:
+      type: object
+      properties:
+        assignment_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [REJECTED]
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - UNAUTHORIZED
+            - FORBIDDEN_OPERATION
+            - INCIDENT_NOT_FOUND
+            - ASSIGNMENT_NOT_FOUND
+            - INCIDENT_ALREADY_ASSIGNED
+            - CREW_NOT_AVAILABLE
+            - ASSIGNMENT_EXPIRED
+            - ASSIGNMENT_ALREADY_PROCESSED
+            - IDEMPOTENCY_CONFLICT
+            - INTERNAL_ERROR
+        message:
+          type: string
