@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0bbc980d-5046-4d45-9cfe-c4ae68419152" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/forDiSt/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/forDiSt/readme.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -54,11 +55,5 @@
         </entry>
       </map>
     </option>
-  </component>
-  <component name="WindowStateProjectService">
-    <state x="881" y="409" width="781" height="408" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1594621227736">
-      <screen x="0" y="24" width="2560" height="1392" />
-    </state>
-    <state x="881" y="409" width="781" height="408" key="#com.intellij.fileTypes.FileTypeChooser/0.24.2560.1392@0.24.2560.1392" timestamp="1594621227736" />
   </component>
 </project>
