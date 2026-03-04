@@ -265,25 +265,34 @@ WHERE status = 'IN_PROGRESS'
 AND saga_timeout < NOW();
 ```
 
-### 3.3 Топики Kafka
-Топик	Тип события	Продюсер	Консьюмеры	Описание
-incident.assignments.requested	IncidentAssignmentRequested	Incident Service	Crew Service	Запрос на резервирование бригады
-crew.reservation.events	CrewReserved / CrewReservationFailed	Crew Service	Incident Service	Результат резервирования
-incident.assignments.lifecycle	IncidentAwaitingConfirmation / IncidentInProgress / IncidentPendingAssignment	Incident Service	Notification Service	Изменения статуса обращения
-assignment.confirmed	AssignmentConfirmed	Incident Service	Crew Service	Врач подтвердил назначение
-assignment.rejected	AssignmentRejected	Incident Service	Crew Service	Отказ или таймаут
-crew.status.updated	CrewBecameBusy / CrewBecameFree	Crew Service	Incident Service	Изменения статуса бригады
-notification.events	Все события для уведомлений	Все сервисы	Notification Service	События, требующие уведомлений
+# 3.3 Топики Kafka
 
-## 4.Детализированное описание методов API
-###   4.1 Метод: POST /incidents/{incident_id}/assign — Назначение обращения
-   Входные параметры
-   Параметр	Тип	Где	Обязательный	Описание
-   incident_id	string (uuid)	path	Да	Идентификатор обращения
-   crew_id	string (uuid)	body	Да	Идентификатор бригады
-   Idempotency-Key	string	header	Да	Уникальный ключ идемпотентности
-   X-Workstation-ID	string (uuid)	header	Да	Рабочее место диспетчера
-   Authorization	string (JWT)	header	Да	Токен авторизации
+| Топик | Тип события | Продюсер | Консьюмеры | Описание |
+|-------|-------------|----------|------------|----------|
+| `incident.assignments.requested` | `IncidentAssignmentRequested` | Incident Service | Crew Service | Запрос на резервирование бригады |
+| `crew.reservation.events` | `CrewReserved` / `CrewReservationFailed` | Crew Service | Incident Service | Результат резервирования |
+| `incident.assignments.lifecycle` | `IncidentAwaitingConfirmation` / `IncidentInProgress` / `IncidentPendingAssignment` | Incident Service | Notification Service | Изменения статуса обращения |
+| `assignment.confirmed` | `AssignmentConfirmed` | Incident Service | Crew Service | Врач подтвердил назначение |
+| `assignment.rejected` | `AssignmentRejected` | Incident Service | Crew Service | Отказ или таймаут |
+| `crew.status.updated` | `CrewBecameBusy` / `CrewBecameFree` | Crew Service | Incident Service | Изменения статуса бригады |
+| `notification.events` | Все события для уведомлений | Все сервисы | Notification Service | События, требующие уведомлений |
+
+---
+
+## 4. Детализированное описание методов API
+
+### 4.1 Метод: POST /incidents/{incident_id}/assign — Назначение обращения
+
+#### Входные параметры
+
+| Параметр | Тип | Где | Обязательный | Описание |
+|----------|-----|-----|--------------|----------|
+| `incident_id` | string (uuid) | path | Да | Идентификатор обращения |
+| `crew_id` | string (uuid) | body | Да | Идентификатор бригады |
+| `Idempotency-Key` | string | header | Да | Уникальный ключ идемпотентности |
+| `X-Workstation-ID` | string (uuid) | header | Да | Рабочее место диспетчера |
+| `Authorization` | string (JWT) | header | Да | Токен авторизации |
+
 ####   Детализированный алгоритм
    
 1. Аутентификация и авторизация
@@ -331,28 +340,37 @@ notification.events	Все события для уведомлений	Все �
    "message": "Assignment initiated, waiting for crew response"
    }
    ```
-   
-  ** Обработка ошибок ** 
-   Код ошибки	HTTP статус	Условие возникновения
-   UNAUTHORIZED	401	JWT отсутствует или невалиден
-   FORBIDDEN_ROLE	403	Пользователь не диспетчер
-   DIRECTION_MISMATCH	403	Направление бригады ≠ направлению обращения
-   INCIDENT_NOT_FOUND	404	Обращение с указанным ID не существует
-   INCIDENT_INVALID_STATUS	409	Статус обращения ≠ PENDING_ASSIGNMENT
-   CREW_NOT_FOUND	404	Бригада не найдена
-   CREW_NOT_AVAILABLE	409	Статус бригады ≠ FREE
-   IDEMPOTENCY_IN_PROGRESS	409	Запрос с этим ключом уже выполняется
-   IDEMPOTENCY_CONFLICT	409	Тот же ключ, но другой request_hash
-  
- ### 4.2 Метод: POST /assignments/{assignment_id}/confirm — Подтверждение назначения
-   Входные параметры
-   Параметр	Тип	Где	Обязательный	Описание
-   assignment_id	string (uuid)	path	Да	Идентификатор назначения
-   Idempotency-Key	string	header	Да	Уникальный ключ идемпотентности
-   X-Workstation-ID	string (uuid)	header	Да	Рабочее место врача
-   Authorization	string (JWT)	header	Да	Токен авторизации
-   Детализированный алгоритм
-   text
+
+
+#### Обработка ошибок
+
+| Код ошибки | HTTP статус | Условие возникновения |
+|------------|-------------|------------------------|
+| `UNAUTHORIZED` | 401 | JWT отсутствует или невалиден |
+| `FORBIDDEN_ROLE` | 403 | Пользователь не диспетчер |
+| `DIRECTION_MISMATCH` | 403 | Направление бригады ≠ направлению обращения |
+| `INCIDENT_NOT_FOUND` | 404 | Обращение с указанным ID не существует |
+| `INCIDENT_INVALID_STATUS` | 409 | Статус обращения ≠ PENDING_ASSIGNMENT |
+| `CREW_NOT_FOUND` | 404 | Бригада не найдена |
+| `CREW_NOT_AVAILABLE` | 409 | Статус бригады ≠ FREE |
+| `IDEMPOTENCY_IN_PROGRESS` | 409 | Запрос с этим ключом уже выполняется |
+| `IDEMPOTENCY_CONFLICT` | 409 | Тот же ключ, но другой request_hash |
+
+---
+
+### 4.2 Метод: POST /assignments/{assignment_id}/confirm — Подтверждение назначения
+
+#### Входные параметры
+
+| Параметр | Тип | Где | Обязательный | Описание |
+|----------|-----|-----|--------------|----------|
+| `assignment_id` | string (uuid) | path | Да | Идентификатор назначения |
+| `Idempotency-Key` | string | header | Да | Уникальный ключ идемпотентности |
+| `X-Workstation-ID` | string (uuid) | header | Да | Рабочее место врача |
+| `Authorization` | string (JWT) | header | Да | Токен авторизации |
+
+#### Детализированный алгоритм
+
 1. Аутентификация и авторизация
    1.1. Извлечь JWT из заголовка Authorization
    1.2. Проверить подпись и срок действия токена
@@ -382,13 +400,13 @@ notification.events	Все события для уведомлений	Все �
    WHERE crew_id = ia.crew_id AND user_id = :user_id
    4.2. IF NOT FOUND → вернуть 403 FORBIDDEN_OPERATION
 
-5. Валидация состояния назначения
+5. Валидация состояния назначения  
    5.1. IF ia.status != 'AWAITING_CONFIRMATION' →
    вернуть 409 ASSIGNMENT_ALREADY_PROCESSED
    5.2. IF ia.expires_at < NOW() →
    вернуть 409 ASSIGNMENT_EXPIRED
 
-6. Оптимистичное обновление
+6. Оптимистичное обновление  
    6.1. UPDATE incident_assignment
    SET status = 'CONFIRMED',
    version = version + 1,
@@ -411,27 +429,30 @@ notification.events	Все события для уведомлений	Все �
    7.3. UPDATE idempotency_keys SET status = 'COMPLETED', response_payload = :response
    7.4. COMMIT
    7.5. Вернуть 200 OK с ConfirmResponse
-   Сценарии race condition и их обработка
-   Сценарий	Результат
-   Таймер и confirm одновременно	Победитель определяется version. Проигравший получает 409
-   Два врача одной бригады	Первый успешно обновляет, второй получает 409
-   Confirm после таймаута	409 ASSIGNMENT_EXPIRED
-   Повторный confirm с тем же ключом	200 OK с сохраненным ответом
-   
-#### Примеры ответов
-* Успешное подтверждение (200 OK)
 
+
+#### Сценарии race condition и их обработка
+
+| Сценарий | Результат |
+|----------|-----------|
+| Таймер и confirm одновременно | Победитель определяется version. Проигравший получает 409 |
+| Два врача одной бригады | Первый успешно обновляет, второй получает 409 |
+| Confirm после таймаута | 409 ASSIGNMENT_EXPIRED |
+| Повторный confirm с тем же ключом | 200 OK с сохраненным ответом |
+
+#### Примеры ответов
+
+**Успешное подтверждение (200 OK)**
 ```json
 {
-"assignment_id": "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11",
-"incident_id": "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901",
-"status": "CONFIRMED",
-"confirmed_at": "2026-03-04T12:29:31.123Z",
-"confirmed_by": "5a7e334f-9210-4f07-b8e1-0f9b8a12c4a1"
+  "assignment_id": "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11",
+  "incident_id": "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901",
+  "status": "CONFIRMED",
+  "confirmed_at": "2026-03-04T12:29:31.123Z",
+  "confirmed_by": "5a7e334f-9210-4f07-b8e1-0f9b8a12c4a1"
 }
 ```
-
-* Ошибка race condition (409 Conflict)
+**Ошибка race condition (409 Conflict)**
 
 ```json
 {
