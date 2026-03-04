@@ -202,8 +202,22 @@
 * **500** — внутренняя ошибка
 
 ---
+### 4. Сводная таблица сервисов / топиков / методов
 
-### 4. Ключевые архитектурные моменты
+| Сервис           | Метод / Event          | Топик                          | Что меняет                                  | Кто подписан                 |
+| ---------------- | ---------------------- | ------------------------------ | ------------------------------------------- | ---------------------------- |
+| Incident Service | POST /assign           | incident.assignments.requested | —                                           | Crew Service                 |
+| Crew Service     | ReserveCrew()          | crew.assignments.status        | status FREE→RESERVED / FAILED               | Incident Service             |
+| Incident Service | process CrewReserved   | —                              | incident_assignment + incident.status       | Notification Service / фронт |
+| Incident Service | POST /accept           | assignment.accepted            | —                                           | Crew Service                 |
+| Crew Service     | SetCrewBusy()          | crew.status.updated            | status RESERVED→BUSY                        | Incident Service             |
+| Incident Service | process CrewBusy       | —                              | incident.status → IN_PROGRESS               | Notification Service / фронт |
+| Incident Service | POST /reject / timeout | assignment.rejected            | —                                           | Crew Service                 |
+| Crew Service     | FreeCrew()             | crew.status.updated            | status RESERVED→FREE                        | Incident Service             |
+| Incident Service | process CrewFreed      | —                              | incident_assignment + incident.status → NEW | Notification Service / фронт |
+
+
+### 5. Ключевые архитектурные моменты
 
 * **Saga:** Incident Service — оркестратор всех шагов
 * **Compensation:** Reject / Timeout → возврат статусов
