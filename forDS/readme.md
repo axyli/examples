@@ -1,8 +1,8 @@
-# 1. Физическая модель данных
+## 1. Физическая модель данных
 
-## 1.1 Incident Service
+### 1.1 Incident Service
 
-### Таблица: incident
+#### Таблица: incident
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -17,9 +17,7 @@
 
 **Индексы:** `(direction_id, status)`
 
----
-
-### Таблица: incident_assignment
+#### Таблица: incident_assignment
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -37,9 +35,7 @@
 
 **Ограничение:** `UNIQUE(incident_id) WHERE status IN ('PENDING_RESERVE','WAITING_CONFIRMATION','ACCEPTED')`
 
----
-
-### Таблица: idempotency_keys
+#### Таблица: idempotency_keys
 
 | Поле | Тип | Описание |
 | ----- | ----- | ----- |
@@ -50,9 +46,7 @@
 | status | VARCHAR (IN_PROGRESS / COMPLETED / FAILED) | Статус выполнения |
 | created_at | TIMESTAMP | Дата создания |
 
----
-
-### Таблица: audit_log
+#### Таблица: audit_log
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -65,9 +59,7 @@
 | payload | JSONB | — | Дополнительные данные |
 | created_at | TIMESTAMP | — | Время события |
 
----
-
-### Таблица: outbox_events
+#### Таблица: outbox_events
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -81,11 +73,9 @@
 | created_at | TIMESTAMP | — | Дата создания |
 | sent_at | TIMESTAMP | — | Дата публикации |
 
----
+### 1.2 Crew Service
 
-## 1.2 Crew Service
-
-### Таблица: crews
+#### Таблица: crews
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -95,11 +85,9 @@
 | version | BIGINT | — | Optimistic Locking |
 | updated_at | TIMESTAMP | — | Дата изменения |
 
----
+### 1.3 Notification Service
 
-## 1.3 Notification Service
-
-### Таблица: notifications
+#### Таблица: notifications
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -113,9 +101,7 @@
 | delivered_at | TIMESTAMP | — | Дата доставки |
 | acknowledged_at | TIMESTAMP | — | Дата подтверждения получения |
 
----
-
-## 1.4 Reference Data
+### 1.4 Reference Data
 
 * **directions:** id, name, is_active, created_at
 * **crew_status_dict:** code, description
@@ -125,9 +111,9 @@
 
 ---
 
-# 2. Методы backend
+## 2. Методы backend
 
-## Incident Service
+### Incident Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
@@ -139,18 +125,14 @@
 | GET /incidents/{id} | path: incident_id | incident detail | Детали обращения |
 | GET /incidents/{id}/history | path: incident_id | audit log | Аудит действий по обращению |
 
----
-
-## Crew Service
+### Crew Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
 | GET /crews?status=FREE | query: status | list of crews | Доступные бригады |
 | internal ReserveCrew | internal | — | Команда для Saga, атомарное резервирование бригады |
 
----
-
-## Notification Service
+### Notification Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
@@ -158,9 +140,7 @@
 | WS ACK handler | payload: notification_id | 200 OK | Подтверждение доставки |
 | WS heartbeat | — | 200 OK | Поддержка сессии |
 
----
-
-## Auth Service
+### Auth Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
@@ -169,7 +149,7 @@
 
 ---
 
-# 3. Подробная логика метода «Назначение обращения» с Saga
+## 3. Подробная логика метода «Назначение обращения» с Saga
 
 **POST /v1/incidents/{incident_id}/assign**
 
@@ -182,17 +162,13 @@
 * Header `Authorization` (JWT)
 * Header `Idempotency-Key`
 
----
-
-## 1. Проверка авторизации
+### 1. Проверка авторизации
 
 * Из JWT извлекает: `user_id`, `role`, `workstation_id`, `direction_id`
 * Токен невалиден → 401
 * Роль != DISPATCHER → 403
 
----
-
-## 2. Проверка идемпотентности
+### 2. Проверка идемпотентности
 
 * Таблица `idempotency_keys`
 * Статусы: `IN_PROGRESS` / `COMPLETED`
@@ -200,9 +176,7 @@
 * Если `IN_PROGRESS` → 409 (обработка уже идёт)
 * Если нет записи → создаём `IN_PROGRESS` → продолжаем
 
----
-
-## 3. Проверка обращения
+### 3. Проверка обращения
 
 * Таблица `incident`: `id`, `status`, `direction_id`, `version`
 * Проверяется:
@@ -210,9 +184,7 @@
     * Направление соответствует диспетчеру → иначе 403
     * Статус = NEW → иначе 409
 
----
-
-## 4. Проверка бригады
+### 4. Проверка бригады
 
 * Crew Service: `id`, `status`, `direction_id`, `version`
 * Проверяется:
@@ -220,18 +192,14 @@
     * Направление совпадает → 403
     * Статус = FREE → иначе 409
 
----
-
-## 5. Резервирование бригады (Saga step)
+### 5. Резервирование бригады (Saga step)
 
 * Отправляется команда `ReserveCrewCommand` в Crew Service
 * Crew Service пытается атомарно обновить: FREE → RESERVED
 * В случае успеха → CrewReserved
 * В случае fail → CrewReserveFailed
 
----
-
-## 6. Создание назначения (assignment)
+### 6. Создание назначения (assignment)
 
 * Таблица `incident_assignment`:
     * `id`
@@ -244,32 +212,22 @@
     * `created_at / updated_at`
 * Ограничение уникальности активного назначения защищает от гонок
 
----
-
-## 7. Обновление обращения
+### 7. Обновление обращения
 
 * Таблица `incident`: `status = ASSIGNED_WAITING_CONFIRMATION`, `version + 1`, `updated_at`
 
----
-
-## 8. Логирование
+### 8. Логирование
 
 * Таблица `audit_log`: `entity_type = INCIDENT`, `action = INCIDENT_ASSIGNED`, `payload = crew_id`
 
----
-
-## 9. Outbox / Notification
+### 9. Outbox / Notification
 
 * Таблица `outbox_events`: `aggregate_type = ASSIGNMENT`, `event_type = IncidentAssigned`
 * После commit → Kafka → Notification Service → WebSocket врачу
 
----
-
-## 10. Завершение операции
+### 10. Завершение операции
 
 * Статус `Idempotency-Key = COMPLETED`
-
----
 
 ### Пример ответа
 
@@ -282,6 +240,7 @@
   "expires_at": "2026-03-04T12:30:00Z"
 }
 ```
+
 ### Возможные ошибки
 
 * **401** — пользователь не авторизован
@@ -298,7 +257,7 @@
 
 **POST /v1/assignments/{assignment_id}/accept**
 
-Логика работы аналогична:
+### Логика работы аналогична
 
 * Идемпотентность через `Idempotency-Key`
 * Проверка таймаута: `expires_at > now()`
