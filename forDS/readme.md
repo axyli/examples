@@ -149,87 +149,108 @@
 
 ---
 
-## 3. Подробная логика метода «Назначение обращения» с Saga
+## 3. Подробная логика метода «Назначение обращения» с Saga (Event-Driven)
 
 **POST /v1/incidents/{incident_id}/assign**
 
-### Логика работы
+---
 
-На вход принимает:
+### Логика работы (overview)
 
-* `incident_id`
-* `crew_id`
-* Header `Authorization` (JWT)
-* Header `Idempotency-Key`
+Incident Service выступает **оркестратором Saga**:
 
-### 1. Проверка авторизации
+1. Проверяет права и статус обращения (синхронно, гарантированный ответ)
+2. Публикует событие `IncidentAssignmentRequested` (асинхронно через Kafka)
+3. Crew Service подписан на событие → обновляет статус бригады в своей БД
+4. Crew Service публикует результат (`CrewReserved` или `CrewReservationFailed`)
+5. Incident Service реагирует на событие и завершает создание `incident_assignment`
+
+---
+
+## 1. Проверка авторизации (синхронно)
 
 * Из JWT извлекает: `user_id`, `role`, `workstation_id`, `direction_id`
-* Токен невалиден → 401
-* Роль != DISPATCHER → 403
+* Токен невалиден → **401**
+* Роль != DISPATCHER → **403**
 
-### 2. Проверка идемпотентности
+**Комментарий:** нужна гарантированная проверка до публикации событий, иначе возможна неверная обработка.
+
+---
+
+## 2. Проверка идемпотентности (синхронно)
 
 * Таблица `idempotency_keys`
 * Статусы: `IN_PROGRESS` / `COMPLETED`
 * Если `COMPLETED` → вернуть сохранённый результат
-* Если `IN_PROGRESS` → 409 (обработка уже идёт)
-* Если нет записи → создаём `IN_PROGRESS` → продолжаем
+* Если `IN_PROGRESS` → **409**
+* Если нет записи → создаём `IN_PROGRESS`
 
-### 3. Проверка обращения
+**Комментарий:** критично гарантированное сохранение Idempotency-Key перед публикацией события, иначе возможны дубли.
+
+---
+
+## 3. Проверка обращения (синхронно)
 
 * Таблица `incident`: `id`, `status`, `direction_id`, `version`
 * Проверяется:
-    * Существует → иначе 404
-    * Направление соответствует диспетчеру → иначе 403
-    * Статус = NEW → иначе 409
+    * Существует → иначе **404**
+    * Направление соответствует диспетчеру → иначе **403**
+    * Статус = NEW → иначе **409**
 
-### 4. Проверка бригады
+**Комментарий:** синхронно, чтобы предотвратить гонки до публикации события.
 
-* Crew Service: `id`, `status`, `direction_id`, `version`
-* Проверяется:
-    * Существует → 404
-    * Направление совпадает → 403
-    * Статус = FREE → иначе 409
+---
 
-### 5. Резервирование бригады (Saga step)
+## 4. Публикация события назначения (асинхронно)
 
-* Отправляется команда `ReserveCrewCommand` в Crew Service
-* Crew Service пытается атомарно обновить: FREE → RESERVED
-* В случае успеха → CrewReserved
-* В случае fail → CrewReserveFailed
+* Incident Service публикует `IncidentAssignmentRequested` в Kafka:
+    * `incident_id`, `crew_id`, `requested_by`, `expires_at`
+* После публикации **не ждём ответа от Crew Service**
 
-### 6. Создание назначения (assignment)
+**Комментарий:** асинхронно → Incident Service не блокируется, нет ожидания REST-ответа.
 
-* Таблица `incident_assignment`:
-    * `id`
-    * `incident_id`
-    * `crew_id`
-    * `status = WAITING_CONFIRMATION`
-    * `expires_at = now + 2 мин`
-    * `assigned_by = user_id`
-    * `workstation_id`
-    * `created_at / updated_at`
-* Ограничение уникальности активного назначения защищает от гонок
+---
 
-### 7. Обновление обращения
+## 5. Обработка события в Crew Service (асинхронно)
 
-* Таблица `incident`: `status = ASSIGNED_WAITING_CONFIRMATION`, `version + 1`, `updated_at`
+* Подписка на `IncidentAssignmentRequested`
+* Crew Service проверяет:
+    * Бригада существует (`id`)
+    * Статус = `FREE`
+    * Направление совпадает
+* Если всё ок → обновляет `status = RESERVED` в своей БД и публикует `CrewReserved`
+* Если проверка не пройдена → публикует `CrewReservationFailed`
 
-### 8. Логирование
+**Комментарий:** гарантированная доставка Kafka нужна, чтобы Incident Service точно получил результат.
 
-* Таблица `audit_log`: `entity_type = INCIDENT`, `action = INCIDENT_ASSIGNED`, `payload = crew_id`
+---
 
-### 9. Outbox / Notification
+## 6. Реакция Incident Service на результат (асинхронно)
 
-* Таблица `outbox_events`: `aggregate_type = ASSIGNMENT`, `event_type = IncidentAssigned`
-* После commit → Kafka → Notification Service → WebSocket врачу
+* Подписка на события `CrewReserved` / `CrewReservationFailed`
+* `CrewReserved` →
+    * Создаёт `incident_assignment` в своей БД
+    * Обновляет `incident.status = ASSIGNED_WAITING_CONFIRMATION`
+    * Добавляет запись в `audit_log`
+    * Публикует `IncidentAssigned` в Kafka для Notification Service
+* `CrewReservationFailed` →
+    * Отмечает Idempotency-Key как FAILED
+    * Возвращает клиенту **409**
 
-### 10. Завершение операции
+**Комментарий:** Event-driven → конечная обработка может быть немного отложена (eventually consistent), но клиент получает ответ только после результата резервирования.
 
-* Статус `Idempotency-Key = COMPLETED`
+---
 
-### Пример ответа
+## 7. Outbox / Notification (асинхронно)
+
+* Все события фиксируются в `outbox_events` атомарно с изменениями своей БД
+* После commit Outbox-процесс публикует события в Kafka → Notification Service и фронт получают обновления
+
+**Комментарий:** полностью асинхронно, фронт и Notification Service могут получить данные с небольшой задержкой, согласованность eventual.
+
+---
+
+### Пример ответа клиенту (после получения `CrewReserved`)
 
 ```json
 {
