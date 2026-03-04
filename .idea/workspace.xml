@@ -5,6 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="0bbc980d-5046-4d45-9cfe-c4ae68419152" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/forDS/openapi.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/forDS/readme.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test.md" beforeDir="false" afterPath="$PROJECT_DIR$/test.md" afterDir="false" />
     </list>

@@ -1,10 +1,8 @@
-## **1. Физическая модель данных**
+# 1. Физическая модель данных
 
-### **1.1 Incident Service**
+## 1.1 Incident Service
 
----
-
-#### **Таблица: incident**
+### Таблица: incident
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -17,11 +15,11 @@
 | created_at | TIMESTAMP | — | Дата создания |
 | updated_at | TIMESTAMP | — | Дата обновления |
 
-**Индексы:** (direction_id, status)
+**Индексы:** `(direction_id, status)`
 
 ---
 
-#### **Таблица: incident_assignment**
+### Таблица: incident_assignment
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -37,24 +35,24 @@
 | created_at | TIMESTAMP | — | Дата создания |
 | updated_at | TIMESTAMP | — | Дата изменения |
 
-**Ограничение:** UNIQUE(incident_id) WHERE status IN ('PENDING_RESERVE','WAITING_CONFIRMATION','ACCEPTED')
+**Ограничение:** `UNIQUE(incident_id) WHERE status IN ('PENDING_RESERVE','WAITING_CONFIRMATION','ACCEPTED')`
 
 ---
 
-#### **Таблица: idempotency_keys**
+### Таблица: idempotency_keys
 
-| Поле | Тип | Описание                            |
-| ----- | ----- |-------------------------------------|
-| key | VARCHAR | PK                                  |
+| Поле | Тип | Описание |
+| ----- | ----- | ----- |
+| key | VARCHAR | PK |
 | user_id | UUID | Пользователь, инициировавший запрос |
-| request_hash | VARCHAR | Хэш запроса                         |
-| response_payload | JSONB | Результат предыдущей операции       |
-| status | VARCHAR (IN_PROGRESS / COMPLETED / FAILED) | Статус выполнения                   |
-| created_at | TIMESTAMP | Дата создания                       |
+| request_hash | VARCHAR | Хэш запроса |
+| response_payload | JSONB | Результат предыдущей операции |
+| status | VARCHAR (IN_PROGRESS / COMPLETED / FAILED) | Статус выполнения |
+| created_at | TIMESTAMP | Дата создания |
 
 ---
 
-#### **Таблица: audit_log**
+### Таблица: audit_log
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -69,7 +67,7 @@
 
 ---
 
-#### **Таблица: outbox_events**
+### Таблица: outbox_events
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -78,18 +76,16 @@
 | aggregate_type | VARCHAR | — | Тип агрегата |
 | event_type | VARCHAR | — | Тип события |
 | payload | JSONB | — | Данные события |
-| status | VARCHAR | NEW / SENT / FAILED |  |
-| retry_count | INT | Количество попыток |  |
-| created_at | TIMESTAMP | Дата создания |  |
-| sent_at | TIMESTAMP | Дата публикации |  |
+| status | VARCHAR | NEW / SENT / FAILED | Статус события |
+| retry_count | INT | — | Количество попыток |
+| created_at | TIMESTAMP | — | Дата создания |
+| sent_at | TIMESTAMP | — | Дата публикации |
 
 ---
 
-### **1.2 Crew Service**
+## 1.2 Crew Service
 
----
-
-#### **Таблица: crews**
+### Таблица: crews
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -101,11 +97,9 @@
 
 ---
 
-### **1.3 Notification Service**
+## 1.3 Notification Service
 
----
-
-#### **Таблица: notifications**
+### Таблица: notifications
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
@@ -113,37 +107,31 @@
 | user_id | UUID | — | Получатель уведомления |
 | type | VARCHAR | — | Тип события (REQUEST_ASSIGN, REQUEST_REJECTED, SYSTEM_ALERT) |
 | payload | JSONB | — | Данные уведомления |
-| status | VARCHAR | NEW / SENT / ACKED / FAILED |  |
-| retry_count | INT | Попытки отправки |  |
-| created_at | TIMESTAMP | Дата создания |  |
-| delivered_at | TIMESTAMP | Дата доставки |  |
-| acknowledged_at | TIMESTAMP | Дата подтверждения получения |  |
+| status | VARCHAR | NEW / SENT / ACKED / FAILED | Статус уведомления |
+| retry_count | INT | — | Попытки отправки |
+| created_at | TIMESTAMP | — | Дата создания |
+| delivered_at | TIMESTAMP | — | Дата доставки |
+| acknowledged_at | TIMESTAMP | — | Дата подтверждения получения |
 
 ---
 
-### **1.4 Reference Data**
+## 1.4 Reference Data
 
-* directions: id, name, is_active, created_at
-
-* crew_status_dict: code, description
-
-* incident_status_dict: code, description
-
-* assignment_status_dict: code, description
-
-* reject_reason_dict: code, description
+* **directions:** id, name, is_active, created_at
+* **crew_status_dict:** code, description
+* **incident_status_dict:** code, description
+* **assignment_status_dict:** code, description
+* **reject_reason_dict:** code, description
 
 ---
 
-## **2\. Методы backend**
+# 2. Методы backend
 
----
-
-**Incident Service**
+## Incident Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
-| POST /incidents/{id}/assign | path: incident_id, body: crew_id, header: Authorization (JWT), Idempotency-Key | 201 Created \+ assignment_id / 403 / 404 / 409 / 500 | Назначение обращения диспетчером через оркестрируемую Saga |
+| POST /incidents/{id}/assign | path: incident_id, body: crew_id, header: Authorization (JWT), Idempotency-Key | 201 Created + assignment_id / 403 / 404 / 409 / 500 | Назначение обращения диспетчером через оркестрируемую Saga |
 | POST /assignments/{id}/accept | path: assignment_id, header: Authorization (JWT), Idempotency-Key | 200 OK / 403 / 404 / 409 / 500 | Подтверждение назначения врачем |
 | POST /assignments/{id}/reject | path: assignment_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 409 / 500 | Отказ назначения |
 | POST /incidents/{id}/complete | path: incident_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 500 | Завершение обращения |
@@ -153,7 +141,7 @@
 
 ---
 
-**Crew Service**
+## Crew Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
@@ -162,7 +150,7 @@
 
 ---
 
-**Notification Service**
+## Notification Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
@@ -172,7 +160,7 @@
 
 ---
 
-**Auth Service**
+## Auth Service
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
@@ -181,211 +169,160 @@
 
 ---
 
-### **3\. Подробная логика метода «Назначение обращения» с Saga**
+# 3. Подробная логика метода «Назначение обращения» с Saga
 
 **POST /v1/incidents/{incident_id}/assign**
 
-#### **Логика работы**
+### Логика работы
 
 На вход принимает:
 
-* incident_id
-
-* crew_id
-
-* header Authorization (JWT)
-
-* header Idempotency-Key
+* `incident_id`
+* `crew_id`
+* Header `Authorization` (JWT)
+* Header `Idempotency-Key`
 
 ---
 
-#### **1\. Проверка авторизации**
+## 1. Проверка авторизации
 
-* Из JWT извлекает user_id, role, workstation_id, direction_id
-
+* Из JWT извлекает: `user_id`, `role`, `workstation_id`, `direction_id`
 * Токен невалиден → 401
-
 * Роль != DISPATCHER → 403
 
 ---
 
-### **2\. Проверка идемпотентности**
+## 2. Проверка идемпотентности
 
-* Таблица idempotency_keys 
-
-* Статусы: IN_PROGRESS / COMPLETED
-
-* Если COMPLETED → вернуть сохранённый результат
-
-* Если IN_PROGRESS → 409 (обработка уже идёт)
-
-* Если нет записи → создаём IN_PROGRESS → продолжаем
+* Таблица `idempotency_keys`
+* Статусы: `IN_PROGRESS` / `COMPLETED`
+* Если `COMPLETED` → вернуть сохранённый результат
+* Если `IN_PROGRESS` → 409 (обработка уже идёт)
+* Если нет записи → создаём `IN_PROGRESS` → продолжаем
 
 ---
 
-### **3\. Проверка обращения**
+## 3. Проверка обращения
 
-* Таблица incident: id, status, direction_id, version
-
+* Таблица `incident`: `id`, `status`, `direction_id`, `version`
 * Проверяется:
-
     * Существует → иначе 404
-
     * Направление соответствует диспетчеру → иначе 403
-
     * Статус = NEW → иначе 409
 
 ---
 
-### **4\. Проверка бригады**
+## 4. Проверка бригады
 
-* Crew Service: id, status, direction_id, version
-
+* Crew Service: `id`, `status`, `direction_id`, `version`
 * Проверяется:
-
     * Существует → 404
-
     * Направление совпадает → 403
-
     * Статус = FREE → иначе 409
 
 ---
 
-### **5\. Резервирование бригады (Saga step)**
+## 5. Резервирование бригады (Saga step)
 
-* Отправляется команда ReserveCrewCommand в Crew Service
-
+* Отправляется команда `ReserveCrewCommand` в Crew Service
 * Crew Service пытается атомарно обновить: FREE → RESERVED
-
 * В случае успеха → CrewReserved
-
 * В случае fail → CrewReserveFailed
 
 ---
 
-### **6\. Создание назначения (assignment)**
+## 6. Создание назначения (assignment)
 
-* Таблица incident_assignment:
-
-    * id
-
-    * incident_id
-
-    * crew_id
-
-    * status \= WAITING_CONFIRMATION
-
-    * expires_at \= now \+ 2 мин
-
-    * assigned_by \= user_id
-
-    * workstation_id
-
-    * created_at / updated_at
-
+* Таблица `incident_assignment`:
+    * `id`
+    * `incident_id`
+    * `crew_id`
+    * `status = WAITING_CONFIRMATION`
+    * `expires_at = now + 2 мин`
+    * `assigned_by = user_id`
+    * `workstation_id`
+    * `created_at / updated_at`
 * Ограничение уникальности активного назначения защищает от гонок
 
 ---
 
-### **7\. Обновление обращения**
+## 7. Обновление обращения
 
-* Таблица incident: status \= ASSIGNED_WAITING_CONFIRMATION, version \+ 1, updated_at
-
----
-
-### **8\. Логирование**
-
-* audit_log: entity_type \= INCIDENT, action \= INCIDENT_ASSIGNED, payload \= crew_id
+* Таблица `incident`: `status = ASSIGNED_WAITING_CONFIRMATION`, `version + 1`, `updated_at`
 
 ---
 
-### **9\. Outbox / Notification**
+## 8. Логирование
 
-* outbox_events: aggregate_type \= ASSIGNMENT, event_type \= IncidentAssigned
-
-* После commit: Kafka → Notification Service → WebSocket врачу
+* Таблица `audit_log`: `entity_type = INCIDENT`, `action = INCIDENT_ASSIGNED`, `payload = crew_id`
 
 ---
 
-### **10\. Завершение операции**
+## 9. Outbox / Notification
 
-* Статус Idempotency-Key \= COMPLETED
+* Таблица `outbox_events`: `aggregate_type = ASSIGNMENT`, `event_type = IncidentAssigned`
+* После commit → Kafka → Notification Service → WebSocket врачу
 
 ---
 
-#### **Пример ответа**
+## 10. Завершение операции
 
-`````{  
-"assignment_id": "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11",  
-"incident_id": "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901",  
-"crew_id": "6a7e334f-9210-4f07-b8e1-0f9b8a12c4a1",  
-"status": "WAITING_CONFIRMATION",  
-"expires_at": "2026-03-04T12:30:00Z"  
+* Статус `Idempotency-Key = COMPLETED`
+
+---
+
+### Пример ответа
+
+```json
+{
+  "assignment_id": "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11",
+  "incident_id": "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901",
+  "crew_id": "6a7e334f-9210-4f07-b8e1-0f9b8a12c4a1",
+  "status": "WAITING_CONFIRMATION",
+  "expires_at": "2026-03-04T12:30:00Z"
 }
+```
+### Возможные ошибки
 
-`````
----
-
-### **Возможные ошибки**
-
-* 401 — пользователь не авторизован
-
-* 403 — недостаточно прав
-
-* 404 — обращение или бригада не найдены
-
-* 409 — обращение уже назначено
-
-* 409 — бригада недоступна
-
-* 409 — повторный Idempotency-Key
-
-* 500 — внутренняя ошибка
+* **401** — пользователь не авторизован
+* **403** — недостаточно прав
+* **404** — обращение или бригада не найдены
+* **409** — обращение уже назначено
+* **409** — бригада недоступна
+* **409** — повторный Idempotency-Key
+* **500** — внутренняя ошибка
 
 ---
 
-## **4\. Подтверждение назначения врачом (Accept)**
+## 4. Подтверждение назначения врачом (Accept)
 
 **POST /v1/assignments/{assignment_id}/accept**
 
 Логика работы аналогична:
 
-* Идемпотентность через Idempotency-Key
-
-* Проверка таймаута: expires_at \> now()
-
-* Атомарное обновление статуса: WAITING_CONFIRMATION → ACCEPTED
-
-* Crew: RESERVED → BUSY
-
-* Incident: ASSIGNED_WAITING_CONFIRMATION → IN_PROGRESS
-
+* Идемпотентность через `Idempotency-Key`
+* Проверка таймаута: `expires_at > now()`
+* Атомарное обновление статуса: `WAITING_CONFIRMATION → ACCEPTED`
+* Crew: `RESERVED → BUSY`
+* Incident: `ASSIGNED_WAITING_CONFIRMATION → IN_PROGRESS`
 * Audit, Outbox, Notification
-
-* Если timeout / отказ сработал параллельно → возвращаем 409
+* Если timeout / отказ сработал параллельно → возвращаем **409**
 
 ---
 
-# **5\. Отказ или таймаут**
+## 5. Отказ или таймаут
 
-* Timeout / Reject → assignment → REJECTED, crew → FREE, incident → NEW
-
+* Timeout / Reject → `assignment → REJECTED`, `crew → FREE`, `incident → NEW`
 * Это отдельный шаг Saga с компенсацией
 
 ---
 
-#  **Ключевые архитектурные моменты**
+## 6. Ключевые архитектурные моменты
 
 1. **Saga:** Incident Service — оркестратор, управление всеми шагами распределённого процесса
-
 2. **Compensation:** Reject / Timeout → освобождение бригады, возврат обращения в NEW
-
 3. **Idempotency:** ключи защищают от повторной обработки
-
-4. **Concurrency:** conditional updates \+ partial unique index предотвращают гонки
-
+4. **Concurrency:** conditional updates + partial unique index предотвращают гонки
 5. **Outbox pattern:** атомарность записи событий и публикации в Kafka
-
 6. **Асинхронность и eventual consistency:** конечное состояние всегда консистентно, промежуточные шаги могут быть временно несогласованными
-
-7. **Audit:** все действия фиксируются с user_id и workstation_id
+7. **Audit:** все действия фиксируются с `user_id` и `workstation_id`  

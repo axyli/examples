@@ -1,0 +1,189 @@
+openapi: 3.1.0
+info:
+  title: Incident Management API
+  version: 1.0.0
+paths:
+  /v1/incidents/{incident_id}/assign:
+    post:
+      summary: Назначение бригады на обращение
+      description: >
+        Метод позволяет диспетчеру назначить конкретную бригаду на обращение.
+        Использует Saga для атомарного резервирования бригады и обновления статусов.
+        Идемпотентность обеспечивается через заголовок Idempotency-Key.
+      parameters:
+        - name: incident_id
+          in: path
+          required: true
+          description: Уникальный идентификатор обращения
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        description: Данные назначения
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - crew_id
+              properties:
+                crew_id:
+                  type: string
+                  format: uuid
+                  description: Идентификатор бригады, которую нужно назначить
+      headers:
+        Idempotency-Key:
+          description: Уникальный ключ для идемпотентности запроса
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Назначение успешно создано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assignment_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор нового назначения
+                  incident_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор обращения
+                  crew_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор назначенной бригады
+                  status:
+                    type: string
+                    enum: [WAITING_CONFIRMATION]
+                    description: Статус назначения после создания
+                  expires_at:
+                    type: string
+                    format: date-time
+                    description: Время истечения ожидания подтверждения
+        '401':
+          description: Пользователь не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Недостаточно прав или направление обращения не совпадает с пользователем
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Обращение или бригада не найдены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Конфликт — обращение уже назначено, бригада недоступна или идемпотентный ключ в процессе
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/assignments/{assignment_id}/accept:
+    post:
+      summary: Подтверждение назначения врачом
+      description: >
+        Метод позволяет врачу подтвердить назначение. 
+        Использует идемпотентность через Idempotency-Key и проверяет таймаут истечения назначения.
+        После подтверждения статусы assignment, crew и incident обновляются атомарно.
+      parameters:
+        - name: assignment_id
+          in: path
+          required: true
+          description: Уникальный идентификатор назначения
+          schema:
+            type: string
+            format: uuid
+      headers:
+        Idempotency-Key:
+          description: Уникальный ключ для идемпотентности запроса
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Назначение подтверждено успешно
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assignment_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор назначения
+                  incident_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор обращения
+                  crew_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор бригады
+                  status:
+                    type: string
+                    enum: [ACCEPTED]
+                    description: Статус назначения после подтверждения
+        '401':
+          description: Пользователь не авторизован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Недостаточно прав
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Назначение не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Конфликт — таймаут назначения истёк или конфликт статусов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      description: Структура стандартной ошибки API
+      properties:
+        code:
+          type: integer
+          description: HTTP статус-код ошибки
+        message:
+          type: string
+          description: Человекочитаемое описание причины ошибки
+        details:
+          type: object
+          nullable: true
+          description: Дополнительная информация, например, поле или контекст ошибки
