@@ -1,4 +1,4 @@
-# **1\. Физическая модель данных**
+# **1. Физическая модель данных**
 
 ## **1.1 Incident Service**
 
@@ -7,77 +7,77 @@
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
 | id | UUID | PK | Уникальный идентификатор обращения |
-| patient\_id | UUID | — | Идентификатор пациента |
-| direction\_id | UUID | FK → directions.id | Направление обращения |
-| status | VARCHAR(50) | FK → incident\_status\_dict.code | Статус обращения (NEW / ASSIGNED\_WAITING\_CONFIRMATION / IN\_PROGRESS / COMPLETED) |
+| patient_id | UUID | — | Идентификатор пациента |
+| direction_id | UUID | FK → directions.id | Направление обращения |
+| status | VARCHAR(50) | FK → incident_status_dict.code | Статус обращения (NEW / ASSIGNED_WAITING_CONFIRMATION / IN_PROGRESS / COMPLETED) |
 | payload | JSONB | — | Детали обращения: симптомы, срочность, заметки диспетчера |
 | version | BIGINT | — | Версия для Optimistic Locking |
-| created\_at | TIMESTAMP | — | Дата создания |
-| updated\_at | TIMESTAMP | — | Дата обновления |
+| created_at | TIMESTAMP | — | Дата создания |
+| updated_at | TIMESTAMP | — | Дата обновления |
 
-**Индексы:** (direction\_id, status)
+**Индексы:** (direction_id, status)
 
-### **Таблица: incident\_assignment**
+### **Таблица: incident_assignment**
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
 | id | UUID | PK | Уникальный идентификатор назначения |
-| incident\_id | UUID | FK → incident.id | Связь с обращением |
-| crew\_id | UUID | FK → crews.id | Назначенная бригада |
-| status | VARCHAR(50) | FK → assignment\_status\_dict.code | Статус назначения (PENDING\_RESERVE / WAITING\_CONFIRMATION / ACCEPTED / REJECTED) |
-| reject\_reason | VARCHAR(50) | FK → reject\_reason\_dict.code, NULL | Причина отказа |
-| expires\_at | TIMESTAMP | — | Время истечения таймера (2 минуты) |
-| assigned\_by | UUID | — | Диспетчер, создавший назначение |
-| handled\_by | UUID | — | Врач, принявший назначение |
-| workstation\_id | UUID | — | Рабочее место диспетчера |
-| created\_at | TIMESTAMP | — | Дата создания |
-| updated\_at | TIMESTAMP | — | Дата изменения |
+| incident_id | UUID | FK → incident.id | Связь с обращением |
+| crew_id | UUID | FK → crews.id | Назначенная бригада |
+| status | VARCHAR(50) | FK → assignment_status_dict.code | Статус назначения (PENDING_RESERVE / WAITING_CONFIRMATION / ACCEPTED / REJECTED) |
+| reject_reason | VARCHAR(50) | FK → reject_reason_dict.code, NULL | Причина отказа |
+| expires_at | TIMESTAMP | — | Время истечения таймера (2 минуты) |
+| assigned_by | UUID | — | Диспетчер, создавший назначение |
+| handled_by | UUID | — | Врач, принявший назначение |
+| workstation_id | UUID | — | Рабочее место диспетчера |
+| created_at | TIMESTAMP | — | Дата создания |
+| updated_at | TIMESTAMP | — | Дата изменения |
 
-**Ограничение:** UNIQUE(incident\_id) WHERE status IN ('PENDING\_RESERVE','WAITING\_CONFIRMATION','ACCEPTED')
+**Ограничение:** UNIQUE(incident_id) WHERE status IN ('PENDING_RESERVE','WAITING_CONFIRMATION','ACCEPTED')
 
 ---
 
-### **Таблица: idempotency\_keys**
+### **Таблица: idempotency_keys**
 
 | Поле | Тип | Описание |
 | ----- | ----- | ----- |
 | key | VARCHAR | PK |
-| user\_id | UUID | Пользователь, инициировавший запрос |
-| request\_hash | VARCHAR | Хэш запроса |
-| response\_payload | JSONB | Результат предыдущей операции |
-| status | VARCHAR (IN\_PROGRESS / COMPLETED / FAILED) | Статус выполнения |
-| created\_at | TIMESTAMP | Дата создания |
+| user_id | UUID | Пользователь, инициировавший запрос |
+| request_hash | VARCHAR | Хэш запроса |
+| response_payload | JSONB | Результат предыдущей операции |
+| status | VARCHAR (IN_PROGRESS / COMPLETED / FAILED) | Статус выполнения |
+| created_at | TIMESTAMP | Дата создания |
 
 ---
 
-### **Таблица: audit\_log**
+### **Таблица: audit_log**
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
 | id | UUID | PK | Идентификатор записи |
-| entity\_type | VARCHAR | — | Тип сущности: INCIDENT / ASSIGNMENT / CREW |
-| entity\_id | UUID | — | ID сущности |
+| entity_type | VARCHAR | — | Тип сущности: INCIDENT / ASSIGNMENT / CREW |
+| entity_id | UUID | — | ID сущности |
 | action | VARCHAR | — | Тип действия |
-| performed\_by | UUID | — | Пользователь (из токена) |
-| workstation\_id | UUID | — | Рабочее место пользователя |
+| performed_by | UUID | — | Пользователь (из токена) |
+| workstation_id | UUID | — | Рабочее место пользователя |
 | payload | JSONB | — | Дополнительные данные |
-| created\_at | TIMESTAMP | — | Время события |
+| created_at | TIMESTAMP | — | Время события |
 
 ---
 
-### **Таблица: outbox\_events**
+### **Таблица: outbox_events**
 
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
 | id | UUID | PK | Идентификатор события |
-| aggregate\_id | UUID | — | ID агрегата (incident / assignment / crew) |
-| aggregate\_type | VARCHAR | — | Тип агрегата |
-| event\_type | VARCHAR | — | Тип события |
+| aggregate_id | UUID | — | ID агрегата (incident / assignment / crew) |
+| aggregate_type | VARCHAR | — | Тип агрегата |
+| event_type | VARCHAR | — | Тип события |
 | payload | JSONB | — | Данные события |
 | status | VARCHAR | NEW / SENT / FAILED |  |
-| retry\_count | INT | Количество попыток |  |
-| created\_at | TIMESTAMP | Дата создания |  |
-| sent\_at | TIMESTAMP | Дата публикации |  |
+| retry_count | INT | Количество попыток |  |
+| created_at | TIMESTAMP | Дата создания |  |
+| sent_at | TIMESTAMP | Дата публикации |  |
 
 ---
 
@@ -88,10 +88,10 @@
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
 | id | UUID | PK | Уникальный идентификатор бригады |
-| direction\_id | UUID | FK → directions.id | Направление бригады |
-| status | VARCHAR | FK → crew\_status\_dict.code | Статус бригады (FREE / RESERVED / BUSY / OFFLINE) |
+| direction_id | UUID | FK → directions.id | Направление бригады |
+| status | VARCHAR | FK → crew_status_dict.code | Статус бригады (FREE / RESERVED / BUSY / OFFLINE) |
 | version | BIGINT | — | Optimistic Locking |
-| updated\_at | TIMESTAMP | — | Дата изменения |
+| updated_at | TIMESTAMP | — | Дата изменения |
 
 ## **1.3 Notification Service**
 
@@ -100,26 +100,26 @@
 | Поле | Тип | PK/FK | Описание |
 | ----- | ----- | ----- | ----- |
 | id | UUID | PK | Идентификатор уведомления |
-| user\_id | UUID | — | Получатель уведомления |
-| type | VARCHAR | — | Тип события (REQUEST\_ASSIGN, REQUEST\_REJECTED, SYSTEM\_ALERT) |
+| user_id | UUID | — | Получатель уведомления |
+| type | VARCHAR | — | Тип события (REQUEST_ASSIGN, REQUEST_REJECTED, SYSTEM_ALERT) |
 | payload | JSONB | — | Данные уведомления |
 | status | VARCHAR | NEW / SENT / ACKED / FAILED |  |
-| retry\_count | INT | Попытки отправки |  |
-| created\_at | TIMESTAMP | Дата создания |  |
-| delivered\_at | TIMESTAMP | Дата доставки |  |
-| acknowledged\_at | TIMESTAMP | Дата подтверждения получения |  |
+| retry_count | INT | Попытки отправки |  |
+| created_at | TIMESTAMP | Дата создания |  |
+| delivered_at | TIMESTAMP | Дата доставки |  |
+| acknowledged_at | TIMESTAMP | Дата подтверждения получения |  |
 
 ## **1.4 Reference Data**
 
-* directions: id, name, is\_active, created\_at
+* directions: id, name, is_active, created_at
 
-* crew\_status\_dict: code, description
+* crew_status_dict: code, description
 
-* incident\_status\_dict: code, description
+* incident_status_dict: code, description
 
-* assignment\_status\_dict: code, description
+* assignment_status_dict: code, description
 
-* reject\_reason\_dict: code, description
+* reject_reason_dict: code, description
 
 # **2\. Методы backend**
 
@@ -127,13 +127,13 @@
 
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
-| POST /incidents/{id}/assign | path: incident\_id, body: crew\_id, header: Authorization (JWT), Idempotency-Key | 201 Created \+ assignment\_id / 403 / 404 / 409 / 500 | Назначение обращения диспетчером через оркестрируемую Saga |
-| POST /assignments/{id}/accept | path: assignment\_id, header: Authorization (JWT), Idempotency-Key | 200 OK / 403 / 404 / 409 / 500 | Подтверждение назначения врачем |
-| POST /assignments/{id}/reject | path: assignment\_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 409 / 500 | Отказ назначения |
-| POST /incidents/{id}/complete | path: incident\_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 500 | Завершение обращения |
+| POST /incidents/{id}/assign | path: incident_id, body: crew_id, header: Authorization (JWT), Idempotency-Key | 201 Created \+ assignment_id / 403 / 404 / 409 / 500 | Назначение обращения диспетчером через оркестрируемую Saga |
+| POST /assignments/{id}/accept | path: assignment_id, header: Authorization (JWT), Idempotency-Key | 200 OK / 403 / 404 / 409 / 500 | Подтверждение назначения врачем |
+| POST /assignments/{id}/reject | path: assignment_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 409 / 500 | Отказ назначения |
+| POST /incidents/{id}/complete | path: incident_id, header: Authorization (JWT) | 200 OK / 403 / 404 / 500 | Завершение обращения |
 | GET /incidents | query: filters | list of incidents | Список обращений |
-| GET /incidents/{id} | path: incident\_id | incident detail | Детали обращения |
-| GET /incidents/{id}/history | path: incident\_id | audit log | Аудит действий по обращению |
+| GET /incidents/{id} | path: incident_id | incident detail | Детали обращения |
+| GET /incidents/{id}/history | path: incident_id | audit log | Аудит действий по обращению |
 
 **Crew Service**
 
@@ -147,7 +147,7 @@
 | Метод | Входные параметры | Выходные параметры | Описание |
 | ----- | ----- | ----- | ----- |
 | GET /notifications | query: filters | list of notifications | Список уведомлений |
-| WS ACK handler | payload: notification\_id | 200 OK | Подтверждение доставки |
+| WS ACK handler | payload: notification_id | 200 OK | Подтверждение доставки |
 | WS heartbeat | — | 200 OK | Поддержка сессии |
 
 **Auth Service**
@@ -161,15 +161,15 @@
 
 # **3\. Подробная логика метода «Назначение обращения» с Saga**
 
-**POST /v1/incidents/{incident\_id}/assign**
+**POST /v1/incidents/{incident_id}/assign**
 
 ### **Логика работы**
 
 На вход:
 
-* incident\_id
+* incident_id
 
-* crew\_id
+* crew_id
 
 * header Authorization (JWT)
 
@@ -179,7 +179,7 @@
 
 ## **1\. Проверка авторизации**
 
-* Из JWT извлекаем user\_id, role, workstation\_id, direction\_id
+* Из JWT извлекаем user_id, role, workstation_id, direction_id
 
 * Токен невалиден → 401
 
@@ -189,21 +189,21 @@
 
 ## **2\. Проверка идемпотентности**
 
-* Таблица idempotency\_keys
+* Таблица idempotency_keys
 
-* Статусы: IN\_PROGRESS / COMPLETED
+* Статусы: IN_PROGRESS / COMPLETED
 
 * Если COMPLETED → вернуть сохранённый результат
 
-* Если IN\_PROGRESS → 409 (обработка уже идёт)
+* Если IN_PROGRESS → 409 (обработка уже идёт)
 
-* Если нет записи → создаём IN\_PROGRESS → продолжаем
+* Если нет записи → создаём IN_PROGRESS → продолжаем
 
 ---
 
 ## **3\. Проверка обращения**
 
-* Таблица incident: id, status, direction\_id, version
+* Таблица incident: id, status, direction_id, version
 
 * Проверяется:
 
@@ -217,7 +217,7 @@
 
 ## **4\. Проверка бригады**
 
-* Crew Service: id, status, direction\_id, version
+* Crew Service: id, status, direction_id, version
 
 * Проверяется:
 
@@ -243,23 +243,23 @@
 
 ## **6\. Создание назначения (assignment)**
 
-* Таблица incident\_assignment:
+* Таблица incident_assignment:
 
     * id
 
-    * incident\_id
+    * incident_id
 
-    * crew\_id
+    * crew_id
 
-    * status \= WAITING\_CONFIRMATION
+    * status \= WAITING_CONFIRMATION
 
-    * expires\_at \= now \+ 2 мин
+    * expires_at \= now \+ 2 мин
 
-    * assigned\_by \= user\_id
+    * assigned_by \= user_id
 
-    * workstation\_id
+    * workstation_id
 
-    * created\_at / updated\_at
+    * created_at / updated_at
 
 * Ограничение уникальности активного назначения защищает от гонок
 
@@ -267,19 +267,19 @@
 
 ## **7\. Обновление обращения**
 
-* Таблица incident: status \= ASSIGNED\_WAITING\_CONFIRMATION, version \+ 1, updated\_at
+* Таблица incident: status \= ASSIGNED_WAITING_CONFIRMATION, version \+ 1, updated_at
 
 ---
 
 ## **8\. Логирование**
 
-* audit\_log: entity\_type \= INCIDENT, action \= INCIDENT\_ASSIGNED, payload \= crew\_id
+* audit_log: entity_type \= INCIDENT, action \= INCIDENT_ASSIGNED, payload \= crew_id
 
 ---
 
 ## **9\. Outbox / Notification**
 
-* outbox\_events: aggregate\_type \= ASSIGNMENT, event\_type \= IncidentAssigned
+* outbox_events: aggregate_type \= ASSIGNMENT, event_type \= IncidentAssigned
 
 * После commit: Kafka → Notification Service → WebSocket врачу
 
@@ -294,11 +294,11 @@
 ### **Пример ответа**
 
 {  
-"assignment\_id": "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11",  
-"incident\_id": "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901",  
-"crew\_id": "6a7e334f-9210-4f07-b8e1-0f9b8a12c4a1",  
-"status": "WAITING\_CONFIRMATION",  
-"expires\_at": "2026-03-04T12:30:00Z"  
+"assignment_id": "b21a9f6e-7c14-4d3f-bc9c-12f32acb4e11",  
+"incident_id": "9f83d9b1-1b62-4c4f-8e4e-6bfc84f1d901",  
+"crew_id": "6a7e334f-9210-4f07-b8e1-0f9b8a12c4a1",  
+"status": "WAITING_CONFIRMATION",  
+"expires_at": "2026-03-04T12:30:00Z"  
 }
 ---
 
@@ -322,19 +322,19 @@
 
 # **4\. Подтверждение назначения врачом (Accept)**
 
-**POST /v1/assignments/{assignment\_id}/accept**
+**POST /v1/assignments/{assignment_id}/accept**
 
 Логика работы аналогична:
 
 * Идемпотентность через Idempotency-Key
 
-* Проверка таймаута: expires\_at \> now()
+* Проверка таймаута: expires_at \> now()
 
-* Атомарное обновление статуса: WAITING\_CONFIRMATION → ACCEPTED
+* Атомарное обновление статуса: WAITING_CONFIRMATION → ACCEPTED
 
 * Crew: RESERVED → BUSY
 
-* Incident: ASSIGNED\_WAITING\_CONFIRMATION → IN\_PROGRESS
+* Incident: ASSIGNED_WAITING_CONFIRMATION → IN_PROGRESS
 
 * Audit, Outbox, Notification
 
@@ -364,4 +364,4 @@
 
 6. **Асинхронность и eventual consistency:** конечное состояние всегда консистентно, промежуточные шаги могут быть временно несогласованными
 
-7. **Audit:** все действия фиксируются с user\_id и workstation\_id
+7. **Audit:** все действия фиксируются с user_id и workstation_id
