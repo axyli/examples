@@ -1,0 +1,577 @@
+openapi: 3.0.1
+info:
+    title: docflow.recognition-docs-crud
+    description: Сервис ведения распознавания документов
+    version: 1.0.0
+servers:
+    -   url: '{server}'
+paths:
+    /v1/docs/{uuid}/lock:
+        post:
+            summary: Установка блокировки и разблокировки документа.
+            description: ""
+            operationId: setDocLock
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        type: string
+                        format: uuid
+                        example: "bbea9b8d-5c0a-44e1-a38f-67028fad33e9"
+            requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        lockBoolean:
+                          type: boolean
+                          example: true
+
+            responses:
+                '201':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/docs/{uuid}/validate:
+        post:
+            summary: Установка признака документа "Валидный".
+            description: ""
+            operationId: setDocValid
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        example: "bbea9b8d-5c0a-44e1-a38f-67028fad33e9"
+                        type: string
+
+            responses:
+                '201':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/docs/{uuid}/invalidate:
+        post:
+            summary: Установка признака документа "Невалидный" и отмена установки признака.
+            description: ""
+            operationId: setDocInvalid
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        example: "bbea9b8d-5c0a-44e1-a38f-67028fad33e9"
+                        type: string
+            requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        reason_uuid:
+                          description: "Причина отклонения"
+                          type: string
+                          example: "44f5f38a-3f28-449f-b9a4-69c485602bc7"
+                        comment:
+                          description: "Комментарий"
+                          type: string
+                          example: "Отсутствует штрихкод"
+                      required: ["reason_uuid"]
+            responses:
+                '201':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/docs/{uuid}/type:
+        post:
+            summary: Сохранение типа документа в парсере документа.
+            description: ""
+            operationId: setDocType
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        type: string
+                        example: "44f5f38a-3f28-449f-b9a4-69c485602bc7"
+            requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        type_uuid:
+                          description: "uuid типа документа"
+                          type: string
+                          example: "44f5f38a-3f28-449f-b9a4-69c485602bc7"
+                      required: ["type_uuid"]
+            responses:
+                '201':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/docs/{uuid}:
+        delete:
+            summary: Удаление документа и отмена удаления.
+            description: ""
+            operationId: deleteDoc
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        type: string
+                        example: "44f5f38a-3f28-449f-b9a4-69c485602bc7"
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/docs/{uuid}/postpone:
+        post:
+            summary: Сохранение статуса "Отложить" по документу.
+            description: ""
+            operationId: setDocPostpone
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        type: string
+                        example: "44f5f38a-3f28-449f-b9a4-69c485602bc7"
+            requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        docContent:
+                            $ref: "#/components/schemas/Content"
+            responses:
+                '201':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/trip_number/{uuid}:
+        post:
+            summary: Сохранение номера заказа в парсере документа.
+            description: ""
+            operationId: setTripNumber
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        type: string
+                        example: "41576fb6-380c-4da2-8178-4e2441b69063"
+            requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        trip_uuid:
+                          description: "uuid заказа поставщика"
+                          type: string
+                          example: "44f5f38a-3f28-449f-b9a4-69c485602bc7"
+                        docContent:
+                            $ref: "#/components/schemas/Content"
+            responses:
+                '201':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/additional_data:
+        post:
+            summary: Сохранение вручную измененных данных полей в парсере документа.
+            description: ""
+            operationId: createAdditionalData
+            requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        doc_uuid:
+                          description: "uuid документа"
+                          type: string
+                          example: "44f5f38a-3f28-449f-b9a4-69c485602bc7"
+                        docContent:
+                            $ref: "#/components/schemas/Content"
+            responses:
+                '201':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/additional_data/{uuid}:
+        get:
+            summary: Получение дополнительных полей документа из парсера по идентификатору документа.
+            description: ""
+            operationId: getAdditionalData
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        type: string
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ScreenContent"
+    /v1/main_data/{uuid}:
+        get:
+            summary: Получение основных данных документа из парсера по идентификатору документа.
+            description: ""
+            operationId: getMainData
+            parameters:
+                -   name: uuid
+                    in: path
+                    required: true
+                    description: "uuid документа"
+                    schema:
+                        type: string
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/DocMainData"
+
+    /odata/v1/listOrders?$filter={parameter_filter}&$orderby={parameter_order}&$top={parameter_top}&$skip={parameter_skip}:
+        post:
+            summary: Получение заказов для документа с фильтрацией.
+            description: "Запрос работает с форматом oData"
+            operationId: getListOrders
+            parameters:
+                -   name: parameter_filter
+                    in: path
+                    required: true
+                    description: "Параметры фильтрации"
+                    schema:
+                        example: "type eq 'BUYER'"
+                        type: string
+                -   name: parameter_order
+                    in: path
+                    required: true
+                    description: "Параметры сортировки"
+                    schema:
+                        example: "pickup_date_plan desc"
+                        type: string
+                -   name: parameter_top
+                    in: path
+                    required: true
+                    description: "Количество записей для возврата"
+                    schema:
+                        example: 100
+                        type: number
+                -   name: parameter_skip
+                    in: path
+                    required: true
+                    description: "Смещение начальной позиции"
+                    schema:
+                        example: 10
+                        type: number
+            responses:
+                '201':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ListOrders"
+    /v1/page_remove/{doc_uuid}:
+        put:
+            summary: Сохранение изъятия страниц из документа и отмена.
+            description: ""
+            operationId: setPageRemove
+            parameters:
+                -   name: doc_uuid
+                    in: path
+                    required: true
+                    description: "Идентификатор документа"
+                    schema:
+                        type: string
+                        example: "df974953-b7c9-41dd-8577-8565b6efd866"
+                -   name: pages
+                    in: query
+                    required: true
+                    description: "Перечень страниц для изъятия"
+                    schema:
+                        type: array
+                        items:
+                           $ref: "#/components/schemas/Page"
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ErrorMessage"
+    /v1/rejection:
+        get:
+            summary: Получение консолидированных данных по отклонениям.
+            description: ""
+            operationId: getRejection
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/RejectionCount"
+    /v1/docs_list_rejected/{reject_type}/{offset}/{limit}:
+        get:
+            summary: Получение списка документов по конкретному отклонению.
+            description: ""
+            operationId: getDocListRejected
+            parameters:
+                -   name: reject_type
+                    in: path
+                    required: true
+                    description: "Тип отклонения"
+                    schema:
+                        type: string
+                        example: "bad_barcode"
+                -   name: limit
+                    in: path
+                    required: true
+                    description: "Количество записей для возврата"
+                    schema:
+                        type: number
+                        example: 100
+                -   name: offset
+                    in: path
+                    required: true
+                    description: "Смещение начальной позиции"
+                    schema:
+                        type: number
+                        example: 1
+            responses:
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/DocsListRejected"
+components:
+    schemas:
+        RejectionCount:
+            type: object
+            properties:
+                absent_count:
+                    type: number
+                    example: 13
+                bad_barcode_count:
+                    type: number
+                    example: 17
+                absent_type_count:
+                    type: number
+                    example: 17
+                absent_trip_count:
+                    type: number
+                    example: 17
+                manual_count:
+                    type: number
+                    example: 17
+            required: ["absent_count", "bad_barcode_count", "absent_type_count","absent_trip_count","manual_count"]
+        ErrorMessage:
+            type: object
+            properties:
+                code:
+                    type: string
+                message:
+                    type: string
+                parameters:
+                    type: object
+            required: ["code", "message", "parameters"]
+        DocsListRejected:
+            description: Список документов для экранов отклонений
+            type: array
+            items:
+                $ref: "#/components/schemas/DocRejected"
+        DocRejected:
+            description: Данные по документу для экрана отклонений
+            type: object
+            properties:
+                uuid:
+                    type: string
+                    example: "0b5db68b-db8c-45ab-9ba5-a77eea29db90"
+                barcode:
+                    type: string
+                    example: "34095734097580"
+                doc_type:
+                    type: string
+                    example: "Счёт"
+                po_number:
+                    type: string
+                    example: "1237532-238"
+                fio_action:
+                    type: string
+                    example: "Петренко А.В."
+                fio_postponed:
+                    type: string        
+                    example: "Сидоров А.А."
+                reject_time:
+                    type: string
+                    example: "2016-11-21T08:00:00.000Z"
+                lock_time:
+                    type: string
+                    example: "2016-11-21T08:00:00.000Z"
+                fio_lock:
+                    type: string
+                    example: "Тимофеев В.Н."
+                cell_code:
+                    type: string
+                    example: "124.55.22"
+        Page:
+            type: object
+            properties:
+                number:
+                    type: number
+                    example: 3
+        ListOrders:
+            description: Список заказов с ключевыми полями для отражения в результатах поиска
+            type: array
+            items:
+                $ref: "#/components/schemas/Order"
+        Order:
+            description: Данные по заказу. Используются для фильтрации и отражения в списке заказов
+            type: object
+            properties:
+                uuid:
+                    type: string
+                    example: "dc59062d-4cf8-42ac-8273-409232b5ba42"
+                type:
+                    type: string
+                    example: "BUYER"
+                number:
+                    type: string
+                    example: "PO19 542 1761"
+                status:
+                    type: string
+                    example: "EXECUTED"
+                created:
+                    type: string
+                    example: "2016-11-21T08:00:00.000Z"
+                from:
+                    type: string
+                    example: "Беларусь, г.Минск"
+                to:
+                    type: string
+                    example: "Беларусь, г.Пушкино"
+                pickup_date_plan:
+                    type: string
+                    example: "2016-11-21T08:00:00.000Z"
+                pickup_date_actual:
+                    type: string
+                    example: "2016-11-21T08:00:00.000Z"
+                internal_number:
+                    type: string
+                    example: "09287618"
+                executor:
+                    type: string
+                    example: "ООО “Ромашка”"
+                logist:
+                    type: string
+                    example: "Ковалев П.А."
+                customer_title:
+                    type: string
+                    example: "ООО”Марс”"
+        DocMainData:
+            description: Основные данные по документу
+            type: object
+            properties:
+                barcode:
+                    type: string
+                    example: "34095734097580"
+                created:
+                    type: string
+                    example: "2016-11-21T08:00:00.000Z"
+                docType:
+                    type: string
+                    example: "Счёт"
+                orderNumber:
+                    type: string
+                    example: "PO19 542 1761"
+        Content:
+            description: Содержимое всех полей документа. Используется для сохранения и создания новой записи в таблице doc_contents
+            type: array
+            items:
+                $ref: "#/components/schemas/ContentField"
+        ContentField:
+            description: Текущее состояние поля документа. Соответствует структуре в поле content
+            type: object
+            properties:
+                uuid:
+                    type: string
+                    example: "81d1a6a6-dd48-4248-bfa9-62d3462ef6bf"
+                value:
+                    type: string
+                    example: "ООО Ромашка"
+                check:
+                    type: boolean
+                    example: true
+            required: ["uuid"]
+        ScreenContent:
+            description: Отражение экранной формы распознования и верификации со служебными полями
+            type: array
+            items:
+                $ref: "#/components/schemas/ScreenContentField"
+        ScreenContentField:
+            description: Информация по одному полю экранной формы распознования и верификации
+            type: object
+            properties:
+                uuid:
+                    type: string
+                    example: "5d06bedd-0236-439b-be20-e4f67c1eca79"
+                title:
+                    type: string
+                    example: "Госномер"
+                fieldOrder:
+                    type: string
+                    example: "В658АС716"
+                fieldRecognize:
+                    type: string
+                    example: "В688АС716"
+                fieldModified:
+                    type: string
+                    example: "В658АС716"
+                check:
+                    type: boolean
+                    example: "true"
+            required: ["uuid","title"]
